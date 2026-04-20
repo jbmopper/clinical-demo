@@ -117,7 +117,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 1.1 | Project scaffolding: Python 3.12, `uv`, repo layout, ruff/black, pre-commit, `.env.example`, README stub, dependency pinning. | 2 |
 | 1.2 | Pull Synthea sample data; write loader that yields parsed Patient objects (demographics, conditions, observations, medications) from per-patient FHIR bundles. *Done.* | 4 |
 | 1.3 | Curate the working patient cohort (~150) by querying the loader for cardiometabolic profiles; persist a manifest. | 2 |
-| 1.4 | Pull ~30 trials from CT.gov v2 API; persist raw JSON + a normalized trial record. | 3 |
+| 1.4 | Pull ~30 trials from CT.gov v2 API; persist raw JSON + a normalized trial record. *Done.* | 3 |
 | 1.5 | Pull Chia corpus, parse the BRAT annotations, build a Pydantic representation of the Chia schema (entities + relations). | 4 |
 | 1.6 | Hand-pick ~30 trials and ~50 (patient, trial) pairs as the **eval seed set**. Hand-label expected per-criterion verdicts for the pairs (this is the most boring, most important task in the whole project — block out a real afternoon). | 6 |
 | 1.7 | Patient Profiler v0: deterministic FHIR → typed Python objects with `as_of_date` slicing. | 4 |
@@ -373,6 +373,34 @@ clinical-codes allowlist, a SNOMED-hierarchy walk, or matcher-side
 reasoning. That decision belongs to task 1.3 (cohort curation) and the
 matcher (task 1.9). The loader does the cheap-and-correct half and
 hands off the hard half to a layer that can make a domain-informed call.
+
+### D-13. Trial curation: sliced search over CT.gov, no hand-cherry-picking
+**Rejected:** hand-curating each of the 30 trials, or one big query with
+thousands of results then sampling.
+**Why:** the curation script (`scripts/curate_trials.py`) splits the
+target ~30 trials into seven labeled slices (T2DM industry/academic,
+hypertension industry/academic, hyperlipidemia, CKD, NSCLC), each issuing
+its own filtered CT.gov query and taking the first N hits with
+eligibility text ≥200 chars. This trades a bit of curation noise for
+reproducibility and an honest cross-section of what real CT.gov queries
+return. The resulting noise (e.g., "ocular hypertension" matching the
+hypertension query, a portal-hypertension chemo trial in the academic
+hypertension slice) is *kept on purpose* — handling off-target trials
+gracefully is part of what the extractor and matcher must demonstrate.
+If demo polish demands it, we can hand-substitute a few trials in
+Phase 3 and document that move.
+
+### D-14. Trial domain model: keep CT.gov's structured fields verbatim
+**Rejected:** parsing `minimum_age` / `maximum_age` strings into ints,
+collapsing `phase` to a single value, looking up sponsor-class codes
+into long names.
+**Why:** CT.gov uses out-of-band conventions ("18 Years", "N/A",
+"PHASE2" with optional second value, sponsor-class enums whose meaning
+shifts) that we don't want to silently lose or normalize away. The
+domain model holds them as the source provides them; downstream
+consumers (matcher, UI) parse on demand with the right amount of
+domain context. This is the same "convert once at the boundary, only
+the fields you'll use" rule that the patient model follows.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

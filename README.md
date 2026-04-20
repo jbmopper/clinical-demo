@@ -40,7 +40,8 @@ uv run ruff check .                        # lint
 uv run ruff format .                       # format
 uv run mypy                                # type check
 uv run pre-commit run --all-files
-uv run marimo edit marimo/explore_synthea.py  # exploratory notebook
+uv run marimo edit marimo/explore_synthea.py  # patient cohort tour
+uv run marimo edit marimo/explore_trials.py   # trial set tour
 ```
 
 ## Data
@@ -52,6 +53,14 @@ sample (PLAN.md §4):
 mkdir -p data/raw/synthea && cd data/raw/synthea
 curl -sL -o synthea.zip 'https://raw.githubusercontent.com/synthetichealth/synthea-sample-data/main/downloads/synthea_sample_data_fhir_r4_nov2021.zip'
 unzip -q synthea.zip   # creates ./fhir/ with ~557 patient bundles
+```
+
+Pull the curated trial set from ClinicalTrials.gov v2 (~30 trials,
+~1.5 seconds, no key needed):
+
+```bash
+uv run python scripts/curate_trials.py
+# writes data/curated/trials/<NCT_ID>.json + data/curated/trials_manifest.json
 ```
 
 ## License
