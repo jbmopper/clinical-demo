@@ -1,3 +1,7 @@
+> Note: This file is the narrative + architecture overview. For current
+> scope, hour estimates, scope cuts, and the decision log, see PLAN.md
+> (which is the source of truth when the two disagree).
+
 Project: Clinical Trial Eligibility Co-Pilot
 
   The user: a clinical research coordinator (CRC) at an academic medical center or community
