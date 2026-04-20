@@ -115,7 +115,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | # | Task | Est. (hr) |
 |---|---|---|
 | 1.1 | Project scaffolding: Python 3.12, `uv`, repo layout, ruff/black, pre-commit, `.env.example`, README stub, dependency pinning. | 2 |
-| 1.2 | Pull Synthea sample data; write loader that yields parsed Patient objects (demographics, conditions, observations, medications, encounters) from FHIR ndjson. | 4 |
+| 1.2 | Pull Synthea sample data; write loader that yields parsed Patient objects (demographics, conditions, observations, medications) from per-patient FHIR bundles. *Done.* | 4 |
 | 1.3 | Curate the working patient cohort (~150) by querying the loader for cardiometabolic profiles; persist a manifest. | 2 |
 | 1.4 | Pull ~30 trials from CT.gov v2 API; persist raw JSON + a normalized trial record. | 3 |
 | 1.5 | Pull Chia corpus, parse the BRAT annotations, build a Pydantic representation of the Chia schema (entities + relations). | 4 |
@@ -347,6 +347,32 @@ relying on LLM-as-judge alone.
 **Why:** without honest hand-labels, every downstream eval number is
 self-referential and a senior interviewer will see through it immediately.
 The afternoon spent labeling 50 pairs is what makes everything else credible.
+
+### D-10. Synthea sample data: per-patient bundles, not bulk ndjson
+**Rejected:** bulk-FHIR ndjson (one file per resource type).
+**Why:** the upstream `synthea-sample-data` artifact ships per-patient
+`Bundle` JSON files (latest dated Nov 2021 — Synthea the generator has
+v4.0.0 from Mar 2026 but the sample-data artifact lags). Per-patient
+bundles map 1:1 to our `Patient` domain object and the streaming benefit
+of ndjson is irrelevant at the 555-patient scale. The PLAN.md task
+description is updated accordingly.
+
+### D-11. Encounters/Procedures/Allergies/Immunizations excluded from v0
+**Rejected:** parsing every FHIR resource type Synthea emits.
+**Why:** none of the cardiometabolic eligibility criteria we expect to
+encounter in Phase 1 require these. Add when an actual criterion needs
+them rather than building speculatively. Each new resource type costs
+a parser, tests, and a domain-model decision.
+
+### D-12. `is_clinical` flag on Condition is necessary-but-not-sufficient
+**Rejected:** stronger upstream filtering at load time.
+**Why:** Synthea categorizes most social findings (e.g.,
+"Full-time employment", "Stress") as `encounter-diagnosis`, not
+`social-history`. Filtering them out reliably needs either a curated
+clinical-codes allowlist, a SNOMED-hierarchy walk, or matcher-side
+reasoning. That decision belongs to task 1.3 (cohort curation) and the
+matcher (task 1.9). The loader does the cheap-and-correct half and
+hands off the hard half to a layer that can make a domain-informed call.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
