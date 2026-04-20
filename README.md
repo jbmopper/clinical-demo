@@ -35,11 +35,23 @@ local install needed). The hook will download `gitleaks` on first run.
 ## Common commands
 
 ```bash
-uv run pytest                # tests
-uv run ruff check .          # lint
-uv run ruff format .         # format
-uv run mypy                  # type check
+uv run pytest                              # tests
+uv run ruff check .                        # lint
+uv run ruff format .                       # format
+uv run mypy                                # type check
 uv run pre-commit run --all-files
+uv run marimo edit marimo/explore_synthea.py  # exploratory notebook
+```
+
+## Data
+
+Source data is gitignored under `data/raw/`. Download the Synthea FHIR R4
+sample (PLAN.md §4):
+
+```bash
+mkdir -p data/raw/synthea && cd data/raw/synthea
+curl -sL -o synthea.zip 'https://raw.githubusercontent.com/synthetichealth/synthea-sample-data/main/downloads/synthea_sample_data_fhir_r4_nov2021.zip'
+unzip -q synthea.zip   # creates ./fhir/ with ~557 patient bundles
 ```
 
 ## License
