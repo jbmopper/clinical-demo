@@ -22,4 +22,4 @@ data/raw/
 data/curated/
 data/cache/
 
-.ipynb_checkpoints/
+__marimo__/
