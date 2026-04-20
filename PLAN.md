@@ -4,7 +4,7 @@
 > final round of a Generative AI Forward Deployed Engineer interview at KPMG's
 > AI & Data Labs practice.
 >
-> **Companion docs.** See `description.txt` for the user/workflow narrative and
+> **Companion docs.** See `description.md` for the user/workflow narrative and
 > high-level architecture; this file is the working build plan, scope contract,
 > and decision log. When the two disagree, this file wins.
 
@@ -100,7 +100,7 @@ on `juliusm.com`, side-by-side with sources, with accept/override/flag
 controls whose feedback is captured into the eval dataset. Every step is traced
 in **Langfuse**.
 
-Architecture diagram lives in `description.txt`.
+Architecture diagram (Mermaid + ASCII) lives in `description.md`.
 
 ---
 
