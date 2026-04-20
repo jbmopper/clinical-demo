@@ -13,6 +13,7 @@ from clinical_demo.domain.patient import (
     Patient,
     Sex,
 )
+from clinical_demo.domain.trial import Trial
 
 __all__ = [
     "CodedConcept",
@@ -21,4 +22,5 @@ __all__ = [
     "Medication",
     "Patient",
     "Sex",
+    "Trial",
 ]

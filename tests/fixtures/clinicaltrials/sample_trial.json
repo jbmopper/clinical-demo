@@ -1,0 +1,287 @@
+{
+  "protocolSection": {
+    "identificationModule": {
+      "nctId": "NCT07321678",
+      "orgStudyIdInfo": {
+        "id": "ASC30-203"
+      },
+      "organization": {
+        "fullName": "Ascletis Pharma Inc",
+        "class": "INDUSTRY"
+      },
+      "briefTitle": "A Study to Evaluate the Efficacy, Safety, and Tolerability of ASC30 Tablets in Participants With Type 2 Diabetes Mellitus",
+      "officialTitle": "A Phase II, Randomized, Double-blind, Placebo-controlled Study to Evaluate the Efficacy, Safety, and Tolerability of ASC30 Tablets in Participants With Type 2 Diabetes Mellitus"
+    },
+    "statusModule": {
+      "statusVerifiedDate": "2026-01",
+      "overallStatus": "RECRUITING",
+      "expandedAccessInfo": {
+        "hasExpandedAccess": false
+      },
+      "startDateStruct": {
+        "date": "2026-01",
+        "type": "ESTIMATED"
+      },
+      "primaryCompletionDateStruct": {
+        "date": "2026-08",
+        "type": "ESTIMATED"
+      },
+      "completionDateStruct": {
+        "date": "2026-08",
+        "type": "ESTIMATED"
+      },
+      "studyFirstSubmitDate": "2026-01-05",
+      "studyFirstSubmitQcDate": "2026-01-05",
+      "studyFirstPostDateStruct": {
+        "date": "2026-01-07",
+        "type": "ACTUAL"
+      },
+      "lastUpdateSubmitDate": "2026-01-05",
+      "lastUpdatePostDateStruct": {
+        "date": "2026-01-07",
+        "type": "ACTUAL"
+      }
+    },
+    "sponsorCollaboratorsModule": {
+      "responsibleParty": {
+        "type": "SPONSOR"
+      },
+      "leadSponsor": {
+        "name": "Ascletis Pharma (China) Co., Limited",
+        "class": "INDUSTRY"
+      }
+    },
+    "oversightModule": {
+      "isFdaRegulatedDrug": true,
+      "isFdaRegulatedDevice": false
+    },
+    "descriptionModule": {
+      "briefSummary": "This randomized, double-blind, placebo-controlled Phase II study is designed to evaluate the efficacy, safety, and tolerability of ASC30 oral tablets formulation in participants with Type 2 Diabetes Mellitus"
+    },
+    "conditionsModule": {
+      "conditions": [
+        "T2DM (Type 2 Diabetes Mellitus)"
+      ]
+    },
+    "designModule": {
+      "studyType": "INTERVENTIONAL",
+      "phases": [
+        "PHASE2"
+      ],
+      "designInfo": {
+        "allocation": "RANDOMIZED",
+        "interventionModel": "PARALLEL",
+        "primaryPurpose": "TREATMENT",
+        "maskingInfo": {
+          "masking": "QUADRUPLE",
+          "whoMasked": [
+            "PARTICIPANT",
+            "CARE_PROVIDER",
+            "INVESTIGATOR",
+            "OUTCOMES_ASSESSOR"
+          ]
+        }
+      },
+      "enrollmentInfo": {
+        "count": 100,
+        "type": "ESTIMATED"
+      }
+    },
+    "armsInterventionsModule": {
+      "armGroups": [
+        {
+          "label": "ASC30 tablets Dose 1",
+          "type": "EXPERIMENTAL",
+          "description": "Participants will receive ASC30 tablets Dose 1 administered orally once daily.",
+          "interventionNames": [
+            "Drug: ASC30 tablets"
+          ]
+        },
+        {
+          "label": "ASC30 tablets Dose 2",
+          "type": "EXPERIMENTAL",
+          "description": "Participants will receive ASC30 tablets Dose 2 administered orally once daily.",
+          "interventionNames": [
+            "Drug: ASC30 tablets"
+          ]
+        },
+        {
+          "label": "ASC30 tablets Dose 3",
+          "type": "EXPERIMENTAL",
+          "description": "Participants will receive ASC30 tablets Dose 3 administered orally once daily.",
+          "interventionNames": [
+            "Drug: ASC30 tablets"
+          ]
+        },
+        {
+          "label": "Placebo",
+          "type": "PLACEBO_COMPARATOR",
+          "description": "Participants will receive Placebo administered orally once daily.",
+          "interventionNames": [
+            "Drug: Placebo"
+          ]
+        }
+      ],
+      "interventions": [
+        {
+          "type": "DRUG",
+          "name": "ASC30 tablets",
+          "description": "ASC30 tablets administered orally once daily",
+          "armGroupLabels": [
+            "ASC30 tablets Dose 1",
+            "ASC30 tablets Dose 2",
+            "ASC30 tablets Dose 3"
+          ]
+        },
+        {
+          "type": "DRUG",
+          "name": "Placebo",
+          "description": "Placebo administered orally once daily",
+          "armGroupLabels": [
+            "Placebo"
+          ]
+        }
+      ]
+    },
+    "outcomesModule": {
+      "primaryOutcomes": [
+        {
+          "measure": "Mean change from baseline in HbA1c up to 13 weeks in the treatment group compared with the placebo group",
+          "timeFrame": "Baseline and end of Week 13"
+        }
+      ],
+      "secondaryOutcomes": [
+        {
+          "measure": "Mean change from baseline in fasting blood glucose up to 13 weeks in the treatment group compared with the placebo group",
+          "timeFrame": "Baseline and end of Week 13"
+        },
+        {
+          "measure": "Mean change from baseline in body weight up to 13 weeks in the treatment group compared with placebo group",
+          "timeFrame": "Baseline and end of Week 13"
+        }
+      ]
+    },
+    "eligibilityModule": {
+      "eligibilityCriteria": "Inclusion Criteria:\n\n* Have Type 2 Diabetes (T2D)\n* Have HbA1c \u22657.0% to \u226410.5% as determined by the central laboratory at screening.\n* Stable body weight (less than 5% self-reported change within the previous 3 months).\n* Have a BMI \u226523.0 kilogram/square meter (kg/m\u00b2) at screening.\n\nExclusion Criteria:\n\n* Have any prior diagnosis of type 1 diabetes mellitus (T1DM), or rare forms of diabetes mellitus\n* Have had more than 1 episode of severe hypoglycemia\n* Have poorly controlled hypertension\n* Have acute or chronic hepatitis and pancreatitis\n* Have evidence of a significant active and uncontrolled medical condition",
+      "healthyVolunteers": false,
+      "sex": "ALL",
+      "minimumAge": "18 Years",
+      "maximumAge": "75 Years",
+      "stdAges": [
+        "ADULT",
+        "OLDER_ADULT"
+      ]
+    },
+    "contactsLocationsModule": {
+      "centralContacts": [
+        {
+          "name": "Ascletis Recruiting",
+          "role": "CONTACT",
+          "phone": "+86 18042462262",
+          "email": "clinicaltrials@ascletis.com"
+        }
+      ],
+      "locations": [
+        {
+          "facility": "Ascletis Clinical Site",
+          "status": "RECRUITING",
+          "city": "Riverside",
+          "state": "California",
+          "zip": "92506",
+          "country": "United States",
+          "geoPoint": {
+            "lat": 33.95335,
+            "lon": -117.39616
+          }
+        },
+        {
+          "facility": "Ascletis Clinical Site",
+          "status": "RECRUITING",
+          "city": "San Jose",
+          "state": "California",
+          "zip": "95128",
+          "country": "United States",
+          "geoPoint": {
+            "lat": 37.33939,
+            "lon": -121.89496
+          }
+        },
+        {
+          "facility": "Ascletis Clinical Site",
+          "status": "RECRUITING",
+          "city": "Denver",
+          "state": "Colorado",
+          "zip": "80246",
+          "country": "United States",
+          "geoPoint": {
+            "lat": 39.73915,
+            "lon": -104.9847
+          }
+        },
+        {
+          "facility": "Ascletis Clinical Site",
+          "status": "RECRUITING",
+          "city": "Miami",
+          "state": "Florida",
+          "zip": "33143",
+          "country": "United States",
+          "geoPoint": {
+            "lat": 25.77427,
+            "lon": -80.19366
+          }
+        },
+        {
+          "facility": "Ascletis Clinical Site",
+          "status": "RECRUITING",
+          "city": "Miami",
+          "state": "Florida",
+          "zip": "33172",
+          "country": "United States",
+          "geoPoint": {
+            "lat": 25.77427,
+            "lon": -80.19366
+          }
+        },
+        {
+          "facility": "Ascletis Clinical Site",
+          "status": "RECRUITING",
+          "city": "Decatur",
+          "state": "Georgia",
+          "zip": "30030",
+          "country": "United States",
+          "geoPoint": {
+            "lat": 33.77483,
+            "lon": -84.29631
+          }
+        },
+        {
+          "facility": "Ascletis Clinical Site",
+          "status": "RECRUITING",
+          "city": "Springfield",
+          "state": "Missouri",
+          "zip": "65802",
+          "country": "United States",
+          "geoPoint": {
+            "lat": 37.21533,
+            "lon": -93.29824
+          }
+        },
+        {
+          "facility": "Ascletis Clinical Site",
+          "status": "RECRUITING",
+          "city": "San Antonio",
+          "state": "Texas",
+          "zip": "78240",
+          "country": "United States",
+          "geoPoint": {
+            "lat": 29.42412,
+            "lon": -98.49363
+          }
+        }
+      ]
+    },
+    "ipdSharingStatementModule": {
+      "ipdSharing": "NO"
+    }
+  }
+}
