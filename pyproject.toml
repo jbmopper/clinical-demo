@@ -13,6 +13,7 @@ dependencies = [
     "fhir-resources>=8.0",
     "openai>=2.32.0",
     "pydantic-settings>=2.14.0",
+    "langfuse>=4",
 ]
 
 [dependency-groups]

@@ -24,6 +24,7 @@ from typing import Any, Protocol, cast
 from openai import OpenAI
 from openai.types.chat import ParsedChatCompletion
 
+from ..observability import traced
 from ..settings import Settings, get_settings
 from .prompt import PROMPT_VERSION, build_messages
 from .schema import ExtractedCriteria, ExtractionMetadata, ExtractorRunMeta
@@ -178,32 +179,97 @@ def extract_criteria(
         )
 
     messages = build_messages(eligibility_text)
-    started = time.monotonic()
-    completion = client.chat.completions.parse(
+    # One Langfuse `generation` per extractor call. We capture
+    # input/output/usage/cost on the happy path and tag the span as
+    # errored on the two typed failure modes so dashboards can split
+    # refusals from other failures without parsing rationale text.
+    with traced(
+        "extract_criteria",
+        as_type="generation",
         model=settings.extractor_model,
-        messages=messages,
-        response_format=ExtractedCriteria,
-        temperature=settings.extractor_temperature,
-        max_tokens=settings.extractor_max_output_tokens,
-    )
-    latency_ms = (time.monotonic() - started) * 1000.0
+        model_parameters={
+            "temperature": settings.extractor_temperature,
+            "max_tokens": settings.extractor_max_output_tokens,
+        },
+        input=eligibility_text,
+        metadata={"prompt_version": PROMPT_VERSION},
+        version=PROMPT_VERSION,
+    ) as span:
+        started = time.monotonic()
+        try:
+            completion = client.chat.completions.parse(
+                model=settings.extractor_model,
+                messages=messages,
+                response_format=ExtractedCriteria,
+                temperature=settings.extractor_temperature,
+                max_tokens=settings.extractor_max_output_tokens,
+            )
+        except Exception as exc:
+            # Latency on the error path is still a useful signal
+            # (timeouts vs immediate 4xx). We surface it via the span
+            # before re-raising the original exception unchanged.
+            error_latency_ms = (time.monotonic() - started) * 1000.0
+            span.update(
+                level="ERROR",
+                status_message=f"{type(exc).__name__}: {exc}",
+                metadata={
+                    "prompt_version": PROMPT_VERSION,
+                    "latency_ms": str(round(error_latency_ms, 2)),
+                },
+            )
+            raise
 
-    choice = completion.choices[0]
-    if choice.message.refusal:
-        raise ExtractorRefusalError(choice.message.refusal, completion)
-    parsed = choice.message.parsed
-    if parsed is None:
-        raise ExtractorMissingParsedError(
-            f"completion had neither parsed payload nor refusal; "
-            f"finish_reason={choice.finish_reason!r}"
+        latency_ms = (time.monotonic() - started) * 1000.0
+        choice = completion.choices[0]
+        usage = completion.usage
+        input_tokens = usage.prompt_tokens if usage else None
+        output_tokens = usage.completion_tokens if usage else None
+        cached_input_tokens: int | None = None
+        if usage is not None and usage.prompt_tokens_details is not None:
+            cached_input_tokens = usage.prompt_tokens_details.cached_tokens
+        cost_usd = _estimate_cost_usd(settings.extractor_model, input_tokens, output_tokens)
+
+        usage_details: dict[str, int] = {}
+        if input_tokens is not None:
+            usage_details["input"] = input_tokens
+        if output_tokens is not None:
+            usage_details["output"] = output_tokens
+        if cached_input_tokens is not None:
+            usage_details["cached_input"] = cached_input_tokens
+
+        if choice.message.refusal:
+            span.update(
+                level="WARNING",
+                status_message=f"refusal: {choice.message.refusal}",
+                output={"refusal": choice.message.refusal},
+                usage_details=usage_details or None,
+                cost_details={"total": cost_usd} if cost_usd is not None else None,
+            )
+            raise ExtractorRefusalError(choice.message.refusal, completion)
+
+        parsed = choice.message.parsed
+        if parsed is None:
+            span.update(
+                level="ERROR",
+                status_message=(f"missing parsed payload; finish_reason={choice.finish_reason!r}"),
+                usage_details=usage_details or None,
+            )
+            raise ExtractorMissingParsedError(
+                f"completion had neither parsed payload nor refusal; "
+                f"finish_reason={choice.finish_reason!r}"
+            )
+
+        span.update(
+            output=parsed.model_dump(mode="json"),
+            usage_details=usage_details or None,
+            cost_details={"total": cost_usd} if cost_usd is not None else None,
+            metadata={
+                "prompt_version": PROMPT_VERSION,
+                "criteria_count": str(len(parsed.criteria)),
+                "finish_reason": str(choice.finish_reason),
+                "latency_ms": str(round(latency_ms, 2)),
+            },
         )
-
-    usage = completion.usage
-    input_tokens = usage.prompt_tokens if usage else None
-    output_tokens = usage.completion_tokens if usage else None
-    cached_input_tokens: int | None = None
-    if usage is not None and usage.prompt_tokens_details is not None:
-        cached_input_tokens = usage.prompt_tokens_details.cached_tokens
 
     meta = ExtractorRunMeta(
         model=settings.extractor_model,
@@ -211,7 +277,7 @@ def extract_criteria(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cached_input_tokens=cached_input_tokens,
-        cost_usd=_estimate_cost_usd(settings.extractor_model, input_tokens, output_tokens),
+        cost_usd=cost_usd,
         latency_ms=latency_ms,
     )
     return ExtractionResult(extracted=parsed, meta=meta)

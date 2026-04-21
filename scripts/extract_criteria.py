@@ -210,4 +210,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from clinical_demo.observability import flush as _flush_traces
+
+    rc = main()
+    _flush_traces()
+    raise SystemExit(rc)

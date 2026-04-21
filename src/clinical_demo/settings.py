@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,11 +38,28 @@ class Settings(BaseSettings):
 
     langfuse_public_key: SecretStr | None = Field(default=None)
     langfuse_secret_key: SecretStr | None = Field(default=None)
-    langfuse_host: str = "https://cloud.langfuse.com"
+    # Accept either LANGFUSE_HOST (Langfuse SDK's canonical env var) or
+    # LANGFUSE_BASE_URL (the convention some teams use; the user's
+    # `.env` may use either). Both alias the same field; SDK only reads
+    # `LANGFUSE_HOST`, so we re-export it via env in the observability
+    # shim before constructing the client.
+    langfuse_host: str = Field(
+        default="https://cloud.langfuse.com",
+        validation_alias=AliasChoices("LANGFUSE_HOST", "LANGFUSE_BASE_URL"),
+    )
 
     extractor_model: str = "gpt-4o-mini-2024-07-18"
     extractor_temperature: float = 0.0
     extractor_max_output_tokens: int = 4096
+
+    @property
+    def is_langfuse_configured(self) -> bool:
+        """True iff both Langfuse credentials are set.
+
+        Code paths that emit traces should check this before calling
+        into the SDK so that callers without keys (CI, local dev with
+        a fresh checkout) get a no-op rather than a runtime crash."""
+        return self.langfuse_public_key is not None and self.langfuse_secret_key is not None
 
 
 @lru_cache(maxsize=1)

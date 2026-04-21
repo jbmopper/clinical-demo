@@ -43,7 +43,8 @@ from ..domain.patient import Patient
 from ..domain.trial import Trial
 from ..extractor.extractor import ExtractionResult, extract_criteria
 from ..extractor.schema import ExtractedCriteria, ExtractorRunMeta
-from ..matcher import MatchVerdict, match_extracted
+from ..matcher import MATCHER_VERSION, MatchVerdict, match_extracted
+from ..observability import traced
 from ..profile import PatientProfile
 
 EligibilityRollup = Literal["pass", "fail", "indeterminate"]
@@ -101,11 +102,61 @@ def score_pair(
         useful for replay / caching, evals, and offline tests. If
         None, calls `extract_criteria(trial.eligibility_text)`.
     """
-    if extraction is None:
-        extraction = extract_criteria(trial.eligibility_text)
+    # One parent span per (patient, trial) pair. The extractor's
+    # `generation` observation nests under it automatically because
+    # `traced(...)` uses `start_as_current_observation`. Tags
+    # (patient_id, nct_id, eligibility, verdict counts) live in
+    # `metadata` so the Langfuse UI can pivot on them without us
+    # leaning on session/user-id semantics that don't fit a batch
+    # eligibility tool. We pass `input` ahead of the LLM call and
+    # `update(...)` with the resolved output at the end so the span
+    # is well-formed even if the extractor raises.
+    with traced(
+        "score_pair",
+        as_type="span",
+        input={
+            "patient_id": patient.patient_id,
+            "nct_id": trial.nct_id,
+            "as_of": as_of.isoformat(),
+            "eligibility_text_chars": len(trial.eligibility_text or ""),
+        },
+        metadata={
+            "patient_id": patient.patient_id,
+            "nct_id": trial.nct_id,
+            "matcher_version": MATCHER_VERSION,
+        },
+    ) as span:
+        if extraction is None:
+            extraction = extract_criteria(trial.eligibility_text)
 
-    profile = PatientProfile(patient, as_of)
-    verdicts = match_extracted(extraction.extracted.criteria, profile, trial)
+        profile = PatientProfile(patient, as_of)
+        verdicts = match_extracted(extraction.extracted.criteria, profile, trial)
+        summary = _summarize(verdicts)
+        eligibility = _rollup(verdicts)
+
+        # Stringify count dicts because Langfuse v4 propagated
+        # metadata is `dict[str, str]`. The structured verdict /
+        # summary objects are still surfaced via `output` for the
+        # full record.
+        span.update(
+            output={
+                "eligibility": eligibility,
+                "total_criteria": summary.total_criteria,
+                "by_verdict": summary.by_verdict,
+                "by_reason": summary.by_reason,
+                "by_polarity": summary.by_polarity,
+            },
+            metadata={
+                "patient_id": patient.patient_id,
+                "nct_id": trial.nct_id,
+                "matcher_version": MATCHER_VERSION,
+                "eligibility": eligibility,
+                "total_criteria": str(summary.total_criteria),
+                "fail_count": str(summary.by_verdict.get("fail", 0)),
+                "pass_count": str(summary.by_verdict.get("pass", 0)),
+                "indeterminate_count": str(summary.by_verdict.get("indeterminate", 0)),
+            },
+        )
 
     return ScorePairResult(
         patient_id=patient.patient_id,
@@ -114,8 +165,8 @@ def score_pair(
         extraction=extraction.extracted,
         extraction_meta=extraction.meta,
         verdicts=verdicts,
-        summary=_summarize(verdicts),
-        eligibility=_rollup(verdicts),
+        summary=summary,
+        eligibility=eligibility,
     )
 
 
