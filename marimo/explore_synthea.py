@@ -6,8 +6,6 @@ Assumes the Synthea sample data has been unzipped under
 data/raw/synthea/fhir/ (see PLAN.md Phase 1 task 1.2).
 """
 
-from __future__ import annotations
-
 import marimo
 
 __generated_with = "0.9.0"
@@ -21,14 +19,17 @@ def _() -> tuple:
 
     from clinical_demo.data.synthea import iter_bundles
 
-    return Counter, Path, iter_bundles
+    repo_root = Path(__file__).resolve().parents[1]
+    return Counter, Path, iter_bundles, repo_root
 
 
 @app.cell
-def _(Path):
-    fhir_dir = Path("data/raw/synthea/fhir")
+def _(repo_root):
+    fhir_dir = repo_root / "data/raw/synthea/fhir"
     files = sorted(fhir_dir.glob("*.json")) if fhir_dir.exists() else []
-    print(f"{len(files)} bundles found at {fhir_dir.resolve() if files else fhir_dir}")
+    print(f"{len(files)} bundles found at {fhir_dir}")
+    if not files:
+        print("expected Synthea bundles under data/raw/synthea/fhir")
     return (files,)
 
 

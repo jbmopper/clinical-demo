@@ -6,8 +6,6 @@ Assumes the curated trials have been pulled to data/curated/trials/
 (see PLAN.md Phase 1 task 1.4; run scripts/curate_trials.py).
 """
 
-from __future__ import annotations
-
 import marimo
 
 __generated_with = "0.9.0"
@@ -22,20 +20,23 @@ def _() -> tuple:
 
     from clinical_demo.data.clinicaltrials import trial_from_raw
 
-    return Counter, Path, json, trial_from_raw
+    repo_root = Path(__file__).resolve().parents[1]
+    return Counter, Path, json, repo_root, trial_from_raw
 
 
 @app.cell
-def _(Path, json):
-    manifest_path = Path("data/curated/trials_manifest.json")
+def _(json, repo_root):
+    manifest_path = repo_root / "data/curated/trials_manifest.json"
     manifest = json.loads(manifest_path.read_text())["trials"] if manifest_path.exists() else []
-    print(f"manifest: {len(manifest)} trials")
+    print(f"manifest: {len(manifest)} trials from {manifest_path}")
+    if not manifest:
+        print("run scripts/curate_trials.py if this manifest has not been built yet")
     return (manifest,)
 
 
 @app.cell
-def _(Path, json, trial_from_raw):
-    trial_dir = Path("data/curated/trials")
+def _(json, repo_root, trial_from_raw):
+    trial_dir = repo_root / "data/curated/trials"
     files = sorted(trial_dir.glob("*.json")) if trial_dir.exists() else []
     trials = [trial_from_raw(json.loads(f.read_text())) for f in files]
     print(f"loaded {len(trials)} trials from {trial_dir}")
@@ -78,11 +79,14 @@ def _(Counter, trials):
 
 @app.cell
 def _(trials):
-    longest = max(trials, key=lambda t: len(t.eligibility_text))
-    print(f"longest criteria: {longest.nct_id}  {longest.title}")
-    print(f"({len(longest.eligibility_text)} chars)\n")
-    print(longest.eligibility_text[:1500])
-    print("\n... [truncated]")
+    if not trials:
+        print("no trials loaded, so there is no longest eligibility section to inspect")
+    else:
+        longest = max(trials, key=lambda t: len(t.eligibility_text))
+        print(f"longest criteria: {longest.nct_id}  {longest.title}")
+        print(f"({len(longest.eligibility_text)} chars)\n")
+        print(longest.eligibility_text[:1500])
+        print("\n... [truncated]")
     return
 
 

@@ -6,8 +6,6 @@ Assumes the Chia corpus has been unzipped under data/raw/chia/
 (see PLAN.md Phase 1 task 1.5; see README.md for the download step).
 """
 
-from __future__ import annotations
-
 import marimo
 
 __generated_with = "0.9.0"
@@ -21,14 +19,17 @@ def _() -> tuple:
 
     from clinical_demo.data.chia import iter_trials
 
-    return Counter, Path, iter_trials
+    repo_root = Path(__file__).resolve().parents[1]
+    return Counter, Path, iter_trials, repo_root
 
 
 @app.cell
-def _(Path, iter_trials):
-    chia_dir = Path("data/raw/chia")
+def _(iter_trials, repo_root):
+    chia_dir = repo_root / "data/raw/chia"
     trials = list(iter_trials(chia_dir)) if chia_dir.exists() else []
     print(f"loaded {len(trials)} trials from {chia_dir}")
+    if not trials:
+        print("expected BRAT files like NCTxxxx_inc.txt and NCTxxxx_inc.ann under data/raw/chia")
     return (trials,)
 
 
@@ -86,13 +87,16 @@ def _(Counter, docs):
 @app.cell
 def _(trials):
     # Inspect one trial in detail.
-    t = trials[0]
-    print(f"trial: {t.nct_id}")
-    print(f"\n--- inclusion source text ---\n{t.inclusion.source_text[:400]}")
-    print("\n--- first 5 inclusion entities ---")
-    for _e in list(t.inclusion.entities.values())[:5]:
-        _spans = ", ".join(f"{_s.start}:{_s.end}" for _s in _e.spans)
-        print(f"  {_e.id}  {_e.type:14s}  [{_spans}]  {_e.text!r}")
+    if not trials:
+        print("no Chia trials loaded, so there is no example trial to inspect")
+    else:
+        t = trials[0]
+        print(f"trial: {t.nct_id}")
+        print(f"\n--- inclusion source text ---\n{t.inclusion.source_text[:400]}")
+        print("\n--- first 5 inclusion entities ---")
+        for _e in list(t.inclusion.entities.values())[:5]:
+            _spans = ", ".join(f"{_s.start}:{_s.end}" for _s in _e.spans)
+            print(f"  {_e.id}  {_e.type:14s}  [{_spans}]  {_e.text!r}")
     return
 
 
