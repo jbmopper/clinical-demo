@@ -10,6 +10,62 @@
 
 ---
 
+## 0. Current state (updated before every commit)
+
+> Single source of truth for "where are we." If you're a future
+> session resuming from a summary, **trust this section over the
+> summary** — it's git-tracked and last-touched right before the
+> head commit. Detailed task history lives in §6; per-decision
+> rationale lives in §12.
+
+- **Active phase:** Phase 2 — Workflow + eval.
+- **Last completed:** Task 2.2 (aggregator + critic loop with
+  HITL seam) — commit `790bb23` (`docs(plan): escape pipes…`)
+  on top of `31247d1` (`feat(graph): aggregator + critic loop…`)
+  and `ce5f096` (`docs: PLAN.md task 2.2 done…`).
+- **Next:** Task 2.3 — eval harness scaffolding (dataset format,
+  runner, results store, CLI: `eval run`, `eval report`).
+- **Gates at HEAD:** `mypy` clean (86 src files); `ruff check` +
+  `ruff format` clean (96 files); `pytest` 340 passing, 1
+  pre-existing failure (see follow-ups).
+- **Branch:** `main`, pushed to `origin`.
+
+### Non-trivial open follow-ups
+
+These are *not* blockers for the next task; they're tracked here
+so they don't get lost between sessions.
+
+- **Pre-existing test failure**:
+  `tests/observability/test_langfuse_shim.py::test_settings_helper_detects_configuration`.
+  `monkeypatch.delenv` doesn't override values that
+  `pydantic-settings` has already loaded from `.env`. Fix is a
+  fixture that resets the cached settings or a `pytest-env`
+  config that ignores `.env` for that test. Predates Phase 2.
+- **Eval seed human-review pass** (Phase 1 task 1.6): ~856
+  free-text criteria across 49 pairs are still
+  `free_text_review_status="pending"`. End-to-end matcher evals
+  cannot be claimed as ground truth until this pass is complete.
+  See the open-question list in §13.
+- **Critic iteration default re-validation** (Phase 2 task 2.7):
+  default `max_critic_iterations=2` was picked on theory, not
+  data. Re-validate against the real revision manifest after the
+  first baseline regression run; if 95%+ of revisions land in
+  iteration 1, drop to 1.
+
+### Maintenance contract for this section
+
+When closing out a task:
+
+1. Update **Last completed** with task id and the commit SHA(s).
+2. Update **Next** with the next task id from §6.
+3. Update **Gates at HEAD** with the actual numbers from a fresh
+   `mypy` + `ruff check` + `ruff format --check` + `pytest -q`.
+4. Add/remove **follow-ups** as they appear/resolve. Don't let
+   this list grow past ~5 items; promote chronic ones into §13
+   open questions or into a new task row.
+
+---
+
 ## 1. North Star
 
 A clinical research coordinator (CRC) loads a patient and a trial. The system
@@ -228,7 +284,10 @@ Cut from the bottom up:
 2. Drop reviewer UI accept/override; show read-only verdicts.
 3. Drop one of the 4–5 models from the cost sweep (keep at least 3 spanning a real price range).
 4. Drop the FastAPI deployment to `juliusm.com`; demo locally with a screen recording as backup.
-5. Drop the Critic loop; show a single-pass aggregator.
+5. ~~Drop the Critic loop; show a single-pass aggregator.~~
+   *(N/A as of Phase 2.2 — the critic loop is built and gated by
+   `critic_enabled=False`. If we need to "cut" it for the demo,
+   we just don't pass the flag; no work to remove.)*
 6. Drop the LangGraph migration; keep an async Python orchestrator. (Acknowledge this in the deck — explain *why* you didn't migrate, which is itself a senior-engineer answer.)
 
 **Do not cut**, ever:
