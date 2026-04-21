@@ -14,6 +14,7 @@ dependencies = [
     "openai>=2.32.0",
     "pydantic-settings>=2.14.0",
     "langfuse>=4",
+    "langgraph>=1",
 ]
 
 [dependency-groups]

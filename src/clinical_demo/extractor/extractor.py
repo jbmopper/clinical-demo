@@ -61,11 +61,15 @@ class ExtractorRefusalError(ExtractorError):
     debugging.
     """
 
-    def __init__(
-        self, refusal_text: str, completion: ParsedChatCompletion[ExtractedCriteria]
-    ) -> None:
+    def __init__(self, refusal_text: str, completion: ParsedChatCompletion[Any]) -> None:
         super().__init__(f"model refused: {refusal_text}")
         self.refusal_text = refusal_text
+        # Typed as ParsedChatCompletion[Any] so callers in the LLM
+        # matcher node (which use a different parsed payload) can
+        # raise this without a cast. The dashboard / log readers
+        # only ever read .refusal_text and a few completion-level
+        # fields (id, model, finish_reason); the parsed payload's
+        # specific shape is irrelevant at this seam.
         self.completion = completion
 
 
