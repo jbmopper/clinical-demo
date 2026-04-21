@@ -119,7 +119,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 1.3 | Curate the working patient cohort (~150) by querying the loader for cardiometabolic profiles; persist a manifest. *Done.* | 2 |
 | 1.4 | Pull ~30 trials from CT.gov v2 API; persist raw JSON + a normalized trial record. *Done.* | 3 |
 | 1.5 | Pull Chia corpus, parse the BRAT annotations, build a Pydantic representation of the Chia schema (entities + relations). *Done.* | 4 |
-| 1.6 | Hand-pick ~30 trials and ~50 (patient, trial) pairs as the **eval seed set**. Hand-label expected per-criterion verdicts for the pairs (this is the most boring, most important task in the whole project — block out a real afternoon). | 6 |
+| 1.6 | Hand-pick ~30 trials and ~50 (patient, trial) pairs as the **eval seed set**. Hand-label expected per-criterion verdicts for the pairs (this is the most boring, most important task in the whole project — block out a real afternoon). *Skeleton + mechanical pass done; free-text human pass owed (~856 criteria across 49 pairs).* | 6 |
 | 1.7 | Patient Profiler v0: deterministic FHIR → typed Python objects with `as_of_date` slicing. | 4 |
 | 1.8 | Criterion Extractor v0: single model, single prompt, JSON-schema output mirroring the Chia entity types. No retries, no router. | 4 |
 | 1.9 | Deterministic matcher v0: covers numeric criteria, age, sex, active condition presence/absence. Returns `pass | fail | indeterminate`. | 4 |
@@ -473,6 +473,52 @@ nesting of binary ORs). So `ChiaEntity.spans` is a list, and
 BRAT structure. Cost: callers that just want a single (start, end)
 get a `.start` / `.end` convenience pair on the entity.
 
+### D-19. Eval seed splits "mechanical" from "human-review" verdicts
+**Rejected:** producing a single flat list of (patient, criterion,
+verdict) triples without distinguishing how each label was derived.
+**Why:** the structured fields a trial gives us (minimum_age,
+maximum_age, sex, healthy_volunteers) are deterministic to verdict
+against the typed patient model — those labels are defensibly
+correct on day one. Free-text criteria (clinical-judgement
+language, prior-therapy exclusions, hard thresholds in narrative
+text) need a human reviewer; pretending we labeled them honestly
+would seed-train the matcher to match my mistakes. The schema
+encodes the split as a `method` field on every `CriterionVerdict`
+(`"mechanical"` vs `"human_review"`), plus a per-pair
+`free_text_criteria_count` and `free_text_review_status`. Eval
+consumers wanting strict ground truth filter to `human_review`;
+consumers measuring structured-field handling include both. The
+deployment writeup will state the split explicitly:
+"49 pairs, 82 mechanical structured-field verdicts (66 pass / 16
+fail / 0 indeterminate), 856 free-text criteria pending CRC review
+before the matcher can be evaluated end-to-end."
+
+### D-20. Slice-aware patient ranking for pair selection
+**Rejected:** uniformly sampling (patient, trial) pairs at random.
+**Why:** uniform sampling produces mostly low-information pairs —
+e.g., a patient with no diabetes paired with a T2DM trial yields
+"`fail` because no Type 2 diabetes" for nearly every criterion,
+which doesn't exercise the matcher's harder paths. Instead we rank
+the cohort per slice by `(slice-topical, has-required-lab,
+cohort-score, age)` so each slice gets pairs likely to *test*
+something: a T2DM trial paired with a high-score diabetic patient
+who has HbA1c on file actually exercises threshold matching, lab
+freshness, and condition-evidence reasoning. The NSCLC slice is an
+intentional exception — the cardiometabolic cohort has no NSCLC
+patients, so all pairs there test the matcher's "fail gracefully on
+out-of-domain trials" path.
+
+### D-21. Cap each patient at N appearances across the seed manifest
+**Rejected:** letting the slice-rank winner dominate every slice
+(7 slices × top-1 ranked patient = the same person in 7 of 49 pairs).
+**Why:** the highest-scoring cohort patient happens to satisfy every
+slice's "topical" filter (they have all four cardiometabolic
+conditions and all four labs). Without a cap, the seed set's
+49 pairs would be drawn from ~7 distinct patients — useless for
+exercising the matcher's behavior across diverse profiles.
+`MAX_PAIRS_PER_PATIENT=2` produces 27 distinct patients × 30
+distinct trials, giving the matcher real coverage on both axes.
+
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
 **Why:** the writeup should be *informed by what was actually built*, not
@@ -483,6 +529,18 @@ match the writeup rather than the other way around.
 
 ## 13. Open questions (to keep visible during build)
 
+- **Eval seed-set human-review pass (Phase 1 task 1.6).** The
+  mechanical labeler produced 82 structured-field verdicts across
+  49 pairs, but the seed set has ~856 free-text criteria pending
+  human review (in `data/curated/eval_seed.json`, every pair carries
+  `free_text_review_status="pending"`). End-to-end matcher evals
+  cannot be claimed as ground truth until this pass is complete.
+  Plan: budget a real afternoon to walk through every pair, mark
+  the obvious ones (clearly satisfied/violated by the patient
+  record), flag the clinical-judgement ones as `indeterminate`
+  with rationale. Flip `free_text_review_status` to `"complete"`
+  pair by pair as you go. Owed labels are surfaced in the manifest
+  summary so progress is visible.
 - Will the Chia entity schema be sufficient as the criterion structured
   representation, or will it need extension for our domains? (Decided in
   Phase 1 task 1.5: the Chia vocabulary is **rich enough** for the

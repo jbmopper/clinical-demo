@@ -40,9 +40,10 @@ uv run ruff check .                        # lint
 uv run ruff format .                       # format
 uv run mypy                                # type check
 uv run pre-commit run --all-files
-uv run marimo edit marimo/explore_synthea.py  # patient cohort tour
-uv run marimo edit marimo/explore_trials.py   # trial set tour
-uv run marimo edit marimo/explore_chia.py     # Chia annotation tour
+uv run marimo edit marimo/explore_synthea.py    # patient cohort tour
+uv run marimo edit marimo/explore_trials.py     # trial set tour
+uv run marimo edit marimo/explore_chia.py       # Chia annotation tour
+uv run marimo edit marimo/explore_eval_seed.py  # eval seed-set tour
 ```
 
 ## Data
@@ -80,6 +81,15 @@ mkdir -p data/raw/chia && cd data/raw/chia
 curl -sL -A 'Mozilla/5.0' -o chia_with_scope.zip 'https://ndownloader.figshare.com/files/21728850'
 unzip -q chia_with_scope.zip
 # yields ~4000 .txt/.ann pairs across 1000 trials
+```
+
+Build the eval seed set (49 pairs across 7 trial slices, with
+mechanical pre-labels for structured fields and free-text criterion
+counts pending human review):
+
+```bash
+uv run python scripts/build_eval_seed.py
+# writes data/curated/eval_seed.json
 ```
 
 ## License
