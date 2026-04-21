@@ -17,8 +17,13 @@ generator-side updates since):
   sufficient. Refining the clinical-vs-social split is a downstream
   matcher concern (codelist filter, SNOMED hierarchy walk, or
   reasoner-side judgment).
-- Observations carry only one `valueQuantity`; categorical observations
-  (e.g., panel results) are skipped in v0.
+- Most Observations carry a single top-level `valueQuantity`. Panels
+  (e.g., blood pressure under LOINC 85354-9) carry no top-level value
+  and instead nest their measurements under `component[]`, each with
+  its own LOINC code and `valueQuantity`. We expand panels into one
+  `LabObservation` per component so downstream code can ask for
+  systolic (8480-6) or diastolic (8462-4) by LOINC like any other lab.
+  Pure categorical observations (no value, no components) are dropped.
 - Race and ethnicity are encoded as US-Core extensions and intentionally
   not surfaced in v0; add when a downstream eligibility criterion needs them.
 - `abatementDateTime` is rarely populated in the sample data, meaning most
@@ -117,8 +122,7 @@ def _patient_from_bundle(bundle: dict[str, Any]) -> Patient:
             obs
             for e in entries
             if e["resource"]["resourceType"] == "Observation"
-            for obs in [_parse_observation(e["resource"])]
-            if obs is not None
+            for obs in _parse_observation(e["resource"])
         ],
         medications=[
             med
@@ -186,20 +190,49 @@ def _parse_condition(resource: dict[str, Any]) -> Condition:
     )
 
 
-def _parse_observation(resource: dict[str, Any]) -> LabObservation | None:
-    """Return None for non-numeric observations (we don't model them in v0)."""
-    vq = resource.get("valueQuantity")
-    if not vq or "value" not in vq:
-        return None
+def _parse_observation(resource: dict[str, Any]) -> list[LabObservation]:
+    """Translate one FHIR Observation into zero or more `LabObservation`s.
+
+    Returns:
+    - One `LabObservation` if the observation has a top-level `valueQuantity`
+      (the common case for single-value labs like HbA1c, LDL, eGFR).
+    - One `LabObservation` per `component` entry that has its own
+      `valueQuantity` (the panel case, e.g. BP packs systolic and diastolic
+      under a single 85354-9 wrapper). The wrapper itself is *not* emitted —
+      panels rarely have a meaningful aggregate value; downstream code
+      asks for the components by LOINC.
+    - An empty list for purely categorical observations or those missing
+      an effective date.
+    """
     eff = _parse_date(resource.get("effectiveDateTime"))
     if eff is None:
-        return None
-    return LabObservation(
-        concept=_parse_concept(resource["code"]),
-        value=float(vq["value"]),
-        unit=vq.get("unit", ""),
-        effective_date=eff,
-    )
+        return []
+
+    vq = resource.get("valueQuantity")
+    if vq and "value" in vq:
+        return [
+            LabObservation(
+                concept=_parse_concept(resource["code"]),
+                value=float(vq["value"]),
+                unit=vq.get("unit", ""),
+                effective_date=eff,
+            )
+        ]
+
+    out: list[LabObservation] = []
+    for comp in resource.get("component", []):
+        cvq = comp.get("valueQuantity")
+        if not cvq or "value" not in cvq:
+            continue
+        out.append(
+            LabObservation(
+                concept=_parse_concept(comp["code"]),
+                value=float(cvq["value"]),
+                unit=cvq.get("unit", ""),
+                effective_date=eff,
+            )
+        )
+    return out
 
 
 def _parse_medication_request(

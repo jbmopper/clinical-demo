@@ -176,3 +176,109 @@ def test_iter_bundles_skips_non_patient_bundles(tmp_path: Path) -> None:
 def test_load_bundle_raises_on_empty() -> None:
     with pytest.raises(ValueError, match="no entries"):
         _patient_from_bundle({"entry": []})
+
+
+def test_blood_pressure_panel_emits_systolic_and_diastolic_components() -> None:
+    """Synthea encodes BP as a panel (LOINC 85354-9) with no top-level value;
+    systolic (8480-6) and diastolic (8462-4) live in `component[]`. The
+    loader must expand the panel into component-level observations or the
+    matcher will think the patient has no BP."""
+    fabricated = {
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Patient",
+                    "id": "p1",
+                    "gender": "female",
+                    "birthDate": "1970-01-01",
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "Observation",
+                    "id": "bp1",
+                    "effectiveDateTime": "2024-06-01T00:00:00Z",
+                    "code": {
+                        "coding": [
+                            {
+                                "system": "http://loinc.org",
+                                "code": "85354-9",
+                                "display": "Blood pressure panel",
+                            }
+                        ]
+                    },
+                    "component": [
+                        {
+                            "code": {
+                                "coding": [
+                                    {
+                                        "system": "http://loinc.org",
+                                        "code": "8480-6",
+                                        "display": "Systolic blood pressure",
+                                    }
+                                ]
+                            },
+                            "valueQuantity": {"value": 132, "unit": "mm[Hg]"},
+                        },
+                        {
+                            "code": {
+                                "coding": [
+                                    {
+                                        "system": "http://loinc.org",
+                                        "code": "8462-4",
+                                        "display": "Diastolic blood pressure",
+                                    }
+                                ]
+                            },
+                            "valueQuantity": {"value": 84, "unit": "mm[Hg]"},
+                        },
+                    ],
+                }
+            },
+        ]
+    }
+    p = _patient_from_bundle(fabricated)
+    assert len(p.observations) == 2
+    by_code = {o.concept.code: o for o in p.observations}
+    assert by_code["8480-6"].value == 132.0
+    assert by_code["8480-6"].unit == "mm[Hg]"
+    assert by_code["8462-4"].value == 84.0
+    assert by_code["8480-6"].effective_date == date(2024, 6, 1)
+
+
+def test_observation_drops_components_missing_value() -> None:
+    """Defensive: a panel with one missing component still yields the others,
+    not a crash and not a phantom row."""
+    fabricated = {
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Patient",
+                    "id": "p2",
+                    "gender": "male",
+                    "birthDate": "1970-01-01",
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "Observation",
+                    "id": "bp2",
+                    "effectiveDateTime": "2024-06-01",
+                    "code": {"coding": [{"system": "http://loinc.org", "code": "85354-9"}]},
+                    "component": [
+                        {
+                            "code": {"coding": [{"system": "http://loinc.org", "code": "8480-6"}]},
+                            "valueQuantity": {"value": 140, "unit": "mm[Hg]"},
+                        },
+                        {
+                            "code": {"coding": [{"system": "http://loinc.org", "code": "8462-4"}]},
+                            # no valueQuantity
+                        },
+                    ],
+                }
+            },
+        ]
+    }
+    p = _patient_from_bundle(fabricated)
+    assert len(p.observations) == 1
+    assert p.observations[0].concept.code == "8480-6"
