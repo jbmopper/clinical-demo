@@ -121,7 +121,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 1.5 | Pull Chia corpus, parse the BRAT annotations, build a Pydantic representation of the Chia schema (entities + relations). *Done.* | 4 |
 | 1.6 | Hand-pick ~30 trials and ~50 (patient, trial) pairs as the **eval seed set**. Hand-label expected per-criterion verdicts for the pairs (this is the most boring, most important task in the whole project — block out a real afternoon). *Skeleton + mechanical pass done; free-text human pass owed (~856 criteria across 49 pairs).* | 6 |
 | 1.7 | Patient Profiler v0: deterministic FHIR → typed Python objects with `as_of_date` slicing. *Done — `PatientProfile` wrapper, 5-state threshold primitives (meets/does_not_meet/no_data/stale_data/unit_mismatch), curated SNOMED+LOINC ConceptSets, eval seed labelers refactored to use the profile.* | 4 |
-| 1.8 | Criterion Extractor v0: single model, single prompt, JSON-schema output mirroring the Chia entity types. No retries, no router. | 4 |
+| 1.8 | Criterion Extractor v0: single model, single prompt, JSON-schema output mirroring the Chia entity types. No retries, no router. *Done — OpenAI structured outputs (`gpt-4o-mini-2024-07-18` default), matcher-ready discriminated schema, 2 few-shot examples drawn from real eligibility text, prompt versioned at `extractor-v0.1`, smoke-script `extract_criteria.py`, 34 unit tests with stub client.* | 4 |
 | 1.9 | Deterministic matcher v0: covers numeric criteria, age, sex, active condition presence/absence. Returns `pass | fail | indeterminate`. | 4 |
 | 1.10 | Glue script: `score_pair(patient, trial) -> List[CriterionVerdict]`, runs from the CLI. | 2 |
 | 1.11 | Wire Langfuse from day one — every LLM call traced; project name `clinical-demo`. | 2 |
@@ -568,6 +568,83 @@ conditions and all four labs). Without a cap, the seed set's
 exercising the matcher's behavior across diverse profiles.
 `MAX_PAIRS_PER_PATIENT=2` produces 27 distinct patients × 30
 distinct trials, giving the matcher real coverage on both axes.
+
+### D-26. Extractor schema is matcher-shaped, not Chia-shaped
+**Rejected:** mirror Chia's full annotation graph (entities + binary
+relations + n-ary equivalence groups + scopes) into the extractor
+output.
+**Why:** Chia is a research-grade representation aimed at *humans*
+reading annotation files. The matcher just needs "what kind of
+criterion is this and which slots does it bind?" — not the full
+relational graph. Forcing the LLM to produce the Chia graph would
+(a) explode the prompt and output token cost for a benefit only the
+eval consumes, and (b) push hard reasoning (resolving relations into
+matcher-actionable claims) onto the model rather than into
+deterministic post-processing. So the schema is a discriminated
+`kind`+payload (age / sex / condition_present / condition_absent /
+medication_present / medication_absent / measurement_threshold /
+temporal_window / free_text). The Chia entity vocabulary is preserved
+as a flat `mentions` list per criterion, audit-only — never read by
+the matcher. This keeps the extractor cheap and the matcher's
+dispatch table boringly explicit.
+
+### D-27. `free_text` as a first-class extractor output
+**Rejected:** silently dropping criteria the LLM can't structure.
+**Why:** "I don't know how to structure this" is itself a
+load-bearing signal — both for the eval (what fraction of real
+eligibility text resists structured extraction?) and for the
+operator UI (these are the rows a human reviewer must adjudicate).
+Carrying a `free_text` row through the same envelope means the
+matcher emits a `human_review_pending` verdict for it instead of the
+trial appearing more checkable than it is. This pairs cleanly with
+the eval seed set's existing mechanical / human-review-pending
+split (D-19) and the same accounting flows end-to-end.
+
+### D-28. OpenAI Structured Outputs over JSON Mode
+**Rejected:** prompt-instructed JSON output with client-side schema
+validation and retry-on-malformed.
+**Why:** strict structured outputs (`response_format=PydanticModel`,
+`strict: true`) give server-side schema enforcement, including
+required-field, enum, and union discipline. The matcher then sees
+either a well-formed payload or a typed `refusal`, never malformed
+JSON. The cost: schema authors lose a few JSON-Schema features
+(`additionalProperties`, defaults, optional-without-explicit-null,
+open dicts) — all features that would have made the matcher's life
+*harder* anyway by widening the input contract. Net win.
+
+### D-29. Single model snapshot pinned in v0; router/sweep is Phase 3
+**Rejected:** building the model abstraction layer alongside the
+extractor.
+**Why:** the project plan explicitly partitions "make it work" (Phase
+1) from "make it cheap and routed" (Phase 3). Starting v0 with the
+abstraction layer means we can't measure baseline quality of the
+single-model path against the routed path — the eval would have
+nothing to compare against. So v0 is `gpt-4o-mini-2024-07-18` only,
+no fallbacks, no retries, structured outputs strict mode. The price
+table for cost estimation is hard-coded with two models (mini + 4o)
+because two is enough to write the bookkeeping correctly without
+overcommitting to a Phase-3 design.
+
+### D-30. Prompt versioning via constant, persisted with every run
+**Rejected:** treating the prompt as part of the code revision and
+relying on git-blame for attribution.
+**Why:** the prompt and the schema are the load-bearing artifacts
+for extraction quality, but they evolve faster than the code around
+them. A `PROMPT_VERSION = "extractor-v0.1"` constant gets persisted
+inside every `ExtractorRunMeta`, so when an eval shows a regression
+or improvement the analyst can attribute it to a specific prompt
+revision in seconds — no git archaeology required. Bumping the
+version is a deliberate act when the prompt's behaviour is meant to
+change, not a side-effect of a typo fix.
+
+### D-31. Settings via `pydantic-settings` + `SecretStr`
+**Rejected:** ad-hoc `os.getenv` calls at the call-sites.
+**Why:** centralising in `clinical_demo.settings` gives a typed,
+documented config surface; `SecretStr` prevents accidental key
+leakage into logs/exception messages; `lru_cache` on the accessor
+makes the env-parse cost a one-time event; tests can construct an
+explicit `Settings` instance to exercise edge cases without touching
+the process env.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

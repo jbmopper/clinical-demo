@@ -3,7 +3,10 @@
 Clinical Trial Eligibility Co-Pilot — a portfolio demo built for a Generative
 AI Forward Deployed Engineer interview.
 
-> **Status: scaffolding.** No working pipeline yet.
+> **Status: Phase 1 in progress.** Curated data products are in place
+> (trials, cohort, Chia corpus, eval seed set, patient profile
+> primitives). LLM criterion extractor v0 is built and unit-tested;
+> deterministic matcher and end-to-end glue are next.
 
 ## What it is (one paragraph)
 
@@ -107,6 +110,27 @@ profile.has_active_condition_in(T2DM)                         # bool
 profile.latest_lab("4548-4", max_age_days=90)                 # LabObservation | None
 profile.meets_threshold("4548-4", ">=", 7.0, "%", max_age_days=90)
 # -> ThresholdResult.MEETS / DOES_NOT_MEET / NO_DATA / STALE_DATA / UNIT_MISMATCH
+```
+
+Run the criterion extractor (LLM, OpenAI structured outputs) on a
+small sample of curated trials. Requires `OPENAI_API_KEY` in `.env`.
+
+```bash
+uv run python scripts/extract_criteria.py --dry-run     # render the prompt only; no API call
+uv run python scripts/extract_criteria.py               # 5 trials by default
+uv run python scripts/extract_criteria.py --limit 0     # all curated trials
+# writes data/curated/extractions/<NCT_ID>.json (one envelope per trial)
+```
+
+Use the extractor library directly:
+
+```python
+from clinical_demo.extractor import extract_criteria
+
+result = extract_criteria(trial.eligibility_text)
+for c in result.extracted.criteria:
+    print(c.kind, c.polarity, c.source_text)
+print(f"prompt={result.meta.prompt_version} cost=${result.meta.cost_usd:.4f}")
 ```
 
 ## License
