@@ -92,6 +92,23 @@ uv run python scripts/build_eval_seed.py
 # writes data/curated/eval_seed.json
 ```
 
+Patient profiles for matcher / labeler use:
+
+```python
+from datetime import date
+from clinical_demo.data.synthea import iter_bundles
+from clinical_demo.profile import PatientProfile, ThresholdResult
+from clinical_demo.profile.concept_sets import T2DM, HBA1C
+
+patient = next(iter_bundles("data/raw/synthea/fhir"))
+profile = PatientProfile(patient, date(2025, 1, 1))
+
+profile.has_active_condition_in(T2DM)                         # bool
+profile.latest_lab("4548-4", max_age_days=90)                 # LabObservation | None
+profile.meets_threshold("4548-4", ">=", 7.0, "%", max_age_days=90)
+# -> ThresholdResult.MEETS / DOES_NOT_MEET / NO_DATA / STALE_DATA / UNIT_MISMATCH
+```
+
 ## License
 
 MIT — see [`LICENSE`](./LICENSE).

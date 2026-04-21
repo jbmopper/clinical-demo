@@ -120,7 +120,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 1.4 | Pull ~30 trials from CT.gov v2 API; persist raw JSON + a normalized trial record. *Done.* | 3 |
 | 1.5 | Pull Chia corpus, parse the BRAT annotations, build a Pydantic representation of the Chia schema (entities + relations). *Done.* | 4 |
 | 1.6 | Hand-pick ~30 trials and ~50 (patient, trial) pairs as the **eval seed set**. Hand-label expected per-criterion verdicts for the pairs (this is the most boring, most important task in the whole project — block out a real afternoon). *Skeleton + mechanical pass done; free-text human pass owed (~856 criteria across 49 pairs).* | 6 |
-| 1.7 | Patient Profiler v0: deterministic FHIR → typed Python objects with `as_of_date` slicing. | 4 |
+| 1.7 | Patient Profiler v0: deterministic FHIR → typed Python objects with `as_of_date` slicing. *Done — `PatientProfile` wrapper, 5-state threshold primitives (meets/does_not_meet/no_data/stale_data/unit_mismatch), curated SNOMED+LOINC ConceptSets, eval seed labelers refactored to use the profile.* | 4 |
 | 1.8 | Criterion Extractor v0: single model, single prompt, JSON-schema output mirroring the Chia entity types. No retries, no router. | 4 |
 | 1.9 | Deterministic matcher v0: covers numeric criteria, age, sex, active condition presence/absence. Returns `pass | fail | indeterminate`. | 4 |
 | 1.10 | Glue script: `score_pair(patient, trial) -> List[CriterionVerdict]`, runs from the CLI. | 2 |
@@ -507,6 +507,56 @@ freshness, and condition-evidence reasoning. The NSCLC slice is an
 intentional exception — the cardiometabolic cohort has no NSCLC
 patients, so all pairs there test the matcher's "fail gracefully on
 out-of-domain trials" path.
+
+### D-22. Patient Profiler is a wrapper, not a materialized snapshot
+**Rejected:** materializing each query result into a frozen
+`PatientProfileSnapshot` Pydantic model.
+**Why:** the underlying `Patient` is already immutable Pydantic and
+the lookups are cheap (one filter scan, occasionally a max). A
+materialized snapshot would add a copy step at construction, raise
+the question of "which view is canonical when the patient updates",
+and serialize the answers we don't need. The wrapper is a thin
+view: `PatientProfile(patient, as_of)` with the as-of date baked in,
+so all queries share consistent semantics without re-passing the
+date everywhere. The matcher, the seed labeler, and any future
+component that needs as-of semantics use the same surface.
+
+### D-23. Threshold checks are a 5-state tri-state, not a boolean
+**Rejected:** `meets_threshold(...) -> bool` (or `bool | None`).
+**Why:** the matcher's verdict is itself tri-state
+(pass / fail / indeterminate), and the cause of indeterminacy
+matters for downstream eval and human review. The profile returns
+`ThresholdResult.{MEETS, DOES_NOT_MEET, NO_DATA, STALE_DATA,
+UNIT_MISMATCH}`. The matcher maps the last three to `indeterminate`
+*with a reason*, so a reviewer can tell "we don't have this lab"
+from "we have an old one" from "we can't compare units" — three
+very different actions: order the lab, refresh the data, or
+normalize the protocol.
+
+### D-24. Unit handling fails closed when units aren't in the alias table
+**Rejected:** silently coercing all unit strings to a single
+canonical numeric value via a generic UCUM library.
+**Why:** for the few labs we care about at v0 (HbA1c, LDL, eGFR,
+BP), the patient-side units are well-known and a tiny per-LOINC
+alias table covers them. UCUM-style auto-conversion adds a real
+risk of nonsense conversions ("HbA1c 53 mmol/mol" → "53 %"
+silently if the conversion isn't actually implemented for that
+quantity), and the failure mode is *correctness*, not
+*availability*. The profile returns `UNIT_MISMATCH` instead, the
+matcher emits `indeterminate (unit_mismatch)`, and a human (or a
+later version with an explicit conversion table) can resolve.
+
+### D-25. ConceptSet carries the coding system URI
+**Rejected:** ConceptSet as just a `frozenset[str]` of code values.
+**Why:** clinical codes are unique only within their coding system.
+A SNOMED 73211000 is "Neoplasm of bone of upper limb"; an ICD-10
+73211000 doesn't exist; an HCC 73211000 means something else again.
+A bare set of code strings invites silent cross-system matches.
+ConceptSet pairs `codes` with `system` and the profile primitives
+filter by *both* when given a ConceptSet (raw-string callers opt
+out of the system check, useful for ad-hoc tests). This costs one
+field on the model and saves one entire class of silent-correctness
+bugs.
 
 ### D-21. Cap each patient at N appearances across the seed manifest
 **Rejected:** letting the slice-rank winner dominate every slice
