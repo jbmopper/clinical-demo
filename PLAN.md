@@ -133,7 +133,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | # | Task | Est. (hr) |
 |---|---|---|
 | 2.1 | LangGraph migration: per-criterion fan-out, deterministic-first conditional routing, LLM matcher node, join. *Done — `clinical_demo.graph` package: `ScoringState` TypedDict with an `operator.add` reducer over `(criterion_index, MatchVerdict)` tuples; nodes for `extract`, deterministic match (thin wrapper over `match_criterion`), LLM match (new — strict structured-output OpenAI call gated on `kind == "free_text"`, with stub-friendly Protocol client), and `rollup` (sort indices, reuse imperative `_summarize`/`_rollup`); routing via `fan_out_criteria` returning `Send` objects (or rollup name when zero criteria); `score_pair_graph()` mirrors `score_pair()` with the same `ScorePairResult` envelope; opens a parent `score_pair_graph` span tagged `orchestrator=langgraph` so extractor + per-criterion `llm_match` generations nest under it. Side-by-side mirror script `scripts/score_pair_graph.py`. 35 new tests pin state, routing, both matcher nodes, end-to-end, and span structure (299 total passing). Decisions D-45..D-49.* | 5 |
-| 2.2 | Aggregator + Critic loop: bounded revision iterations, termination conditions, human-checkpoint hook. | 4 |
+| 2.2 | Aggregator + Critic loop: bounded revision iterations, termination conditions, human-checkpoint hook. *Done — `clinical_demo.graph` package gains `critic_node`, `revise_node`, `finalize_node` and a `route_after_critic` conditional edge wired as `rollup → critic → [revise → rollup | finalize]`. The critic is a separate LLM call with its own pinned prompt (`LLM_CRITIC_VERSION = "llm-critic-v0.1"`) that emits closed-enum **process** findings (`polarity_smell`, `extraction_disagreement_with_text`, `low_confidence_indeterminate`) with `info|warning|blocker` severities; it never re-decides eligibility itself. Revise picks the highest-severity warning, dispatches to a closed-enum action (`rerun_match_with_focus`, `flip_polarity_and_rematch`, `rerun_extract_for_criterion`), and re-runs the existing matcher path so revisions stay auditable. Loop terminates on (a) no actionable findings, (b) `max_critic_iterations` budget (default 2), (c) no-progress detection comparing the current iteration's finding fingerprints to the previous; LangGraph's `recursion_limit` is a runtime config backstop. New `merge_indexed_verdicts` reducer gives `indexed_verdicts` replace-by-index semantics so revised verdicts supersede rather than coexist. Human checkpoint is opt-in (`human_checkpoint=True`): graph compiles with `InMemorySaver(serde=JsonPlusSerializer(pickle_fallback=True))` and `interrupt_before=[FINALIZE_NODE]`, requires a `thread_id`, and resumes via the same `score_pair_graph()` entry. Observability tags critic/revise/finalize spans with iteration + action + criterion-index + verdict-changed metadata, plus per-pair `critic_iterations` / `revisions_total` / `revisions_changed_verdict` on the parent. 32 new tests across `test_critic_node.py`, `test_revise_node.py`, `test_route_after_critic.py`, `test_critic_loop_e2e.py`, `test_human_checkpoint.py` cover defensive index filtering, refusal handling, fingerprint snapshots, action dispatch (free-text vs deterministic, polarity flip, no-op recording), termination conditions, e2e parity when the critic is disabled, and HITL pause/resume — plus expansions to `test_state.py` (new reducer + state keys) and `test_observability.py` (new spans). 340 total passing. Decisions D-50..D-58.* | 4 |
 | 2.3 | Eval harness scaffolding: dataset format, runner, results store, basic CLI (`eval run`, `eval report`). | 4 |
 | 2.4 | Layer 1 eval — deterministic: per-criterion accuracy on numeric/structured criteria. | 2 |
 | 2.5 | Layer 2 eval — reference-based: criterion extraction F1 vs. Chia annotations. | 4 |
@@ -895,6 +895,159 @@ and ~50 lines of mostly-shared CLI plumbing. Once eval confirms
 parity (or surfaces the intended differences), the imperative path
 will delegate to the graph and the duplicate disappears.
 
+### D-50. Critic identifies process problems; the matcher decides eligibility
+**Rejected:** an LLM critic that takes the verdicts and emits a
+revised verdict directly ("the patient is actually a pass on
+criterion 3").
+**Why:** if the critic can change the answer in one shot, the
+audit trail collapses into "the model changed its mind." Instead
+the critic emits closed-enum **process findings** —
+`polarity_smell`, `extraction_disagreement_with_text`,
+`low_confidence_indeterminate` — each tied to one criterion index,
+each with a one-sentence rationale and an `info|warning|blocker`
+severity. The revise node then dispatches the finding to a
+closed-enum **action** (re-run the LLM matcher with focus, flip
+polarity and re-match, re-extract that one criterion) and the
+*existing* matcher path produces the new verdict. So every
+verdict in the trace was produced by a matcher; every revision
+has a recorded reason, action, and `verdict_changed` flag. This
+is the discipline the deployment-readiness writeup needs and the
+shape an eval pivot ("critic interventions that actually changed
+an answer") relies on.
+
+### D-51. `merge_indexed_verdicts` replace-by-index reducer
+**Rejected:** keeping `operator.add` on `indexed_verdicts` and
+filtering duplicates at read time.
+**Why:** `operator.add` was the right choice for the initial
+parallel fan-out (D-46), but the critic loop *replaces* the
+verdict at index N rather than appending another one. Filtering
+at read time would mean every consumer of the rollup has to know
+about revision history, and the LangGraph reducer contract
+becomes a lie: state would no longer be the source of truth, the
+read function would be. Custom reducer keeps the invariant —
+exactly one verdict per criterion index in state — and pushes
+revision history into the dedicated `critic_revisions` audit log
+(append-only via `operator.add`), where it belongs.
+
+### D-52. Layered termination: budget + no-progress + recursion backstop
+**Rejected:** a single `max_critic_iterations` cap.
+**Why:** any one of those signals is the wrong one to trust
+alone. A pure budget keeps spending tokens on revisions that
+aren't moving anything. Pure no-progress detection is fragile
+when the LLM emits the same finding with different rationale
+text. Pure `recursion_limit` only fires after the loop has
+already gone wrong. So the loop terminates on the *earliest* of:
+(a) the critic returns no actionable warnings; (b)
+`max_critic_iterations` is hit (default 2 — one critique + one
+revision + one re-critique that confirms convergence); (c)
+fingerprint-based no-progress check (the set of
+`(criterion_index, finding_kind)` pairs is unchanged from the
+previous iteration). LangGraph's `recursion_limit` stays
+configured as a runtime backstop in case any of those checks have
+a bug. Two iterations is what the manifest will end up actually
+spending in 95% of pairs; the budget is there for the long tail.
+
+### D-53. Critic is a separate prompt and a separate node, not the matcher reused
+**Rejected:** asking the same LLM matcher to also produce a
+"would I revise this?" annotation as a side output.
+**Why:** the critic's job (review verdicts, emit findings, never
+decide eligibility) and the matcher's job (decide one verdict,
+return a `MatchVerdict`) have different inputs (matcher: one
+criterion + restricted snapshot; critic: all verdicts + the
+trial's eligibility text), different outputs, different
+prompts, and crucially different versioning concerns: the
+matcher prompt is regression-tested against the eval seed, the
+critic prompt is regression-tested against the *manifest of
+critic-driven revisions*. Collapsing them into one prompt would
+mean a prompt change for one job invalidates eval baselines for
+the other. Cost is one extra LLM call per pair when the critic
+is enabled, which is why it stays opt-in (`critic_enabled=False`
+by default in v0).
+
+### D-54. Revise re-uses the LLM matcher node, doesn't introduce a "re-matcher"
+**Rejected:** a dedicated revision-time matcher with its own
+prompt that takes "previous verdict + critic finding" as
+context.
+**Why:** another prompt to version, another set of eval baselines
+to maintain, and a second code path through which a verdict can
+be produced. The revise node instead constructs a
+`{criterion, patient}` input identical to the matcher's normal
+input and calls the existing `llm_match_node` (or the
+deterministic matcher, for non-`free_text` criteria). The
+"focus" from the critic finding is recorded in the revise span's
+input and in the `CriticRevision.rationale`, but the matcher
+prompt is unchanged. Same prompt version, same eval baselines.
+For deterministic criteria the revise node is a no-op
+(deterministic matchers are already stable); the no-op is still
+recorded as a `CriticRevision` with `verdict_changed=False` so
+the audit trail stays complete.
+
+### D-55. Human checkpoint as an opt-in `interrupt_before` on `finalize`
+**Rejected:** (a) a separate "human review" graph; (b) always
+interrupting and requiring an explicit "approve" call.
+**Why:** the v0 demo doesn't have a human reviewer in the loop,
+so the default path must run end-to-end without one. But the
+deployment-readiness writeup needs a real seam where a human can
+review and override before the verdict is "final." LangGraph's
+`interrupt_before` on a designated node is the clean way: the
+`finalize` node is a deliberately-empty pass-through whose only
+purpose is to be that seam. When `human_checkpoint=True` the
+graph compiles with an `InMemorySaver` checkpointer and pauses
+before `finalize`; the caller resumes via the same
+`score_pair_graph(thread_id=...)` entry. When the flag is off,
+`finalize` runs inline and emits its span like any other node.
+One node, two modes, no graph fork.
+
+### D-56. `pickle_fallback=True` on the InMemorySaver
+**Rejected:** making `PatientProfile` Pydantic so it serialises
+via msgpack like the other state.
+**Why:** `PatientProfile` is a thin wrapper around the parsed
+FHIR bundle and isn't meant to be a wire type — its purpose is
+in-process access. Forcing it to be Pydantic would either bloat
+the profile with thousands of fields or hide most of the bundle
+behind opaque dicts. The HITL checkpointer is in-process by
+construction (it's an `InMemorySaver`, not durable storage), so
+`pickle_fallback=True` on the serializer is the right pragmatic
+choice: the typed state still goes through msgpack via the
+Pydantic types, the profile pickles. When/if Phase 4 adds a
+durable checkpoint store, the profile will be re-hydrated from
+the bundle on resume rather than serialised at all, and this
+fallback can be removed.
+
+### D-57. Critic span tagging surfaces revisions in the trace
+**Rejected:** tagging only the parent `score_pair_graph` span
+with critic stats.
+**Why:** the parent-only view is enough for cohort-level metrics
+("X% of pairs had critic revisions") but not enough to debug a
+single pair: the trace would show that a verdict changed without
+showing *why* the critic flagged it or *what* the revise node
+did. So critic spans carry `critic_iteration` and the count of
+findings; revise spans carry `criterion_index`, `action`,
+`finding_kind`, `verdict_changed`. The parent still gets
+`critic_iterations`, `revisions_total`, `revisions_changed_verdict`
+for the cohort view. Cost is metadata only — no new generations,
+no new spans beyond the ones already added for the loop — but
+the debug experience is the difference between "verdict
+changed mid-pair, who knows why" and "verdict flipped because
+the critic flagged a polarity smell on criterion 3 and the
+revise node ran `flip_polarity_and_rematch`."
+
+### D-58. Critic audit data lives in the trace, not on `ScorePairResult`
+**Rejected:** extending `ScoringSummary` (or `ScorePairResult`)
+with `critic_revisions: list[CriticRevision]` and
+`critic_iterations: int`.
+**Why:** the imperative `score_pair()` and the graph
+`score_pair_graph(critic_enabled=False)` have to keep returning
+the same envelope so the eval harness in 2.3 can A/B them
+without branching on which orchestrator produced the result
+(D-49). Adding critic fields to the envelope either breaks that
+parity or saddles the imperative path with optional fields it
+will never populate. The audit data is fully captured in the
+Langfuse trace (D-57), and the in-process caller can still read
+it off the graph's `final_state` if it needs to. Phase 2.3 may
+introduce a richer `ScoreRunResult` envelope once the eval
+harness lands; deferred until there's a concrete consumer.
+
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
 **Why:** the writeup should be *informed by what was actually built*, not
@@ -927,8 +1080,14 @@ match the writeup rather than the other way around.
   separately. Open variant: whether to surface `Non-representable` /
   `Not_a_criteria` as a "skip" verdict in the matcher — defer to
   task 1.9.)
-- How many critique-loop iterations are useful before diminishing returns?
-  (Decide after Phase 2 task 2.2 with real measurements.)
+- How many critique-loop iterations are useful before diminishing
+  returns? (Default of 2 picked in Phase 2 task 2.2 — one
+  critique + one revision + one re-critique to confirm
+  convergence — paired with no-progress fingerprint detection so
+  the loop also terminates earlier when findings are stable.
+  Re-validate against the real revision manifest in Phase 2 task
+  2.7 after the first baseline regression run; if 95%+ of
+  revisions land in iteration 1, drop the default to 1.)
 - For the LLM-as-judge calibration, is there enough human-judge agreement on
   the borderline cases for the metric to mean anything? (Decide after Phase
   2 task 2.6 — if calibration is poor, simplify the rubric.)

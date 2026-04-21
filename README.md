@@ -5,14 +5,17 @@ AI Forward Deployed Engineer interview.
 
 > **Status: Phase 2 in progress.** Phase 1 deliverables (curated
 > data, extractor v0, deterministic matcher v0, end-to-end
-> `score_pair`, Langfuse tracing) are complete. Phase 2 task 2.1 just
-> landed: the scoring pipeline now runs through a LangGraph
-> orchestrator (`score_pair_graph()`) with per-criterion fan-out, a
-> deterministic-first router, an LLM matcher node for free-text
-> criteria, and a join+rollup. Imperative `score_pair()` and the
-> graph version run side-by-side until the eval harness in 2.3
-> confirms parity. **299 tests passing.** Up next: aggregator/critic
-> loop, eval harness, and the reviewer UI.
+> `score_pair`, Langfuse tracing) are complete. Phase 2 task 2.1
+> landed the LangGraph orchestrator (`score_pair_graph()`) with
+> per-criterion fan-out, a deterministic-first router, an LLM
+> matcher node for free-text criteria, and a join+rollup. Phase 2
+> task 2.2 has now landed the **aggregator + critic loop**
+> (`rollup → critic → [revise → rollup | finalize]`) with closed-enum
+> process findings, bounded revisions, no-progress detection, and
+> an opt-in `interrupt_before` human checkpoint on `finalize`.
+> Imperative `score_pair()` and the graph version run side-by-side
+> until the eval harness in 2.3 confirms parity. **340 tests
+> passing.** Up next: eval harness and the reviewer UI.
 
 ## What it is (one paragraph)
 
@@ -217,7 +220,7 @@ implementation of the same pipeline. Same input, same
 `ScorePairResult` envelope; the difference is internal — fan-out
 parallelism over criteria, an LLM matcher node for free-text
 criteria the deterministic matcher cannot decide structurally, and
-a clean seam where Phase 2.2's critic loop will plug in.
+the critic loop described below.
 
 Graph shape:
 
@@ -225,8 +228,12 @@ Graph shape:
 START → extract → [conditional fan-out: one Send per criterion]
                        ├─ deterministic_match  (kind != free_text)
                        └─ llm_match            (kind == free_text)
-                  → rollup → END
+                  → rollup → critic → [revise → rollup | finalize] → END
 ```
+
+(The critic and revise nodes are skipped when `critic_enabled=False`,
+which is the v0 default; in that case the graph collapses to
+`rollup → finalize → END`.)
 
 The two implementations run side by side until the eval harness
 in 2.3 confirms parity. Drive the graph from a script:
@@ -255,6 +262,103 @@ node itself, not the model, so the LLM only ever decides the
 predicate of the criterion. The LLM matcher's verdicts carry
 `matcher_version="llm-matcher-v0.1"` so eval consumers can pivot
 on which path produced each verdict.
+
+### Critic loop (Phase 2.2)
+
+The critic is an LLM reviewer that runs *after* the rollup. It
+does **not** decide eligibility — it identifies process problems
+with how the matcher reached its current verdicts and emits
+closed-enum findings that the revise node turns into targeted
+re-runs. Every verdict in the trace was still produced by a
+matcher; every revision has a recorded reason, action, and
+`verdict_changed` flag.
+
+Finding kinds (closed enum, pinned by `LLM_CRITIC_VERSION`):
+
+- `polarity_smell` — the matcher's rationale describes the
+  patient as meeting the predicate but the verdict contradicts
+  the polarity (e.g. exclusion criterion, verdict=pass). Almost
+  always an extractor polarity bug. **Action:** flip polarity and
+  re-match.
+- `extraction_disagreement_with_text` — the criterion's source
+  text mentions a constraint the structured fields don't reflect
+  (e.g. `"≥18 AND non-pregnant"` extracted as age only).
+  **Action:** re-extract that one criterion.
+- `low_confidence_indeterminate` — `indeterminate(no_data)` on a
+  free-text criterion where the rationale itself hints there's
+  signal nearby. **Action:** re-run the LLM matcher with the
+  finding's rationale as focus.
+
+Severities are `info` (recorded but not acted on), `warning`
+(triggers a revision), `blocker` (reserved for the heuristic
+critic and human checkpoints; the LLM critic does not emit these
+in v0).
+
+Termination is layered. The loop ends on the *earliest* of:
+
+1. The critic returns no actionable warnings.
+2. `max_critic_iterations` is hit (default `2`: one critique +
+   one revision + one re-critique that confirms convergence).
+3. Fingerprint-based no-progress detection — the set of
+   `(criterion_index, finding_kind)` pairs from this iteration
+   matches the previous iteration. The critic isn't finding new
+   process problems, just re-flagging the same ones.
+
+LangGraph's `recursion_limit` stays configured as a runtime
+backstop in case any of the above checks have a bug.
+
+The critic is **opt-in** in v0: enable per call via
+`critic_enabled=True`. When disabled the graph collapses to a
+single `rollup → finalize → END` and adds no LLM cost beyond the
+extractor + matcher.
+
+```python
+from datetime import date
+from clinical_demo.graph import score_pair_graph
+
+result = score_pair_graph(
+    patient, trial,
+    as_of=date(2025, 1, 1),
+    critic_enabled=True,
+    max_critic_iterations=2,
+)
+```
+
+`result` is the same `ScorePairResult` envelope produced by the
+non-critic path (D-58); the audit trail (per-iteration findings,
+per-revision action + `verdict_changed`, total iteration count)
+lives in the Langfuse trace. The parent `score_pair_graph` span
+is tagged with `critic_iterations`, `revisions_total`, and
+`revisions_changed_verdict`; per-revise spans carry
+`criterion_index`, `action`, `finding_kind`, and `verdict_changed`.
+Phase 2.3 may surface a subset on a richer envelope once the eval
+harness has a concrete consumer.
+
+### Human checkpoint
+
+Set `human_checkpoint=True` to compile the graph with an
+`InMemorySaver` checkpointer and `interrupt_before=[finalize]`.
+The graph then pauses just before `finalize` and the caller gets
+back the in-progress state for the given `thread_id`:
+
+```python
+from langgraph.types import Command
+
+result = score_pair_graph(
+    patient, trial,
+    as_of=date(2025, 1, 1),
+    human_checkpoint=True,
+    thread_id="pair-42",
+)
+# inspect / override; then resume by re-invoking the underlying
+# graph on the same thread with Command(resume=...)
+```
+
+The v0 wiring is the LangGraph-native pause/resume primitive
+rather than a wrapped helper — Phase 2.8 will wrap it behind the
+reviewer UI's API once the override semantics are settled. By
+default (`human_checkpoint=False`) `finalize` runs inline — same
+node, two modes, no graph fork.
 
 ## Observability
 
