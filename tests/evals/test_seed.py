@@ -26,6 +26,7 @@ from clinical_demo.evals.seed import (
     mechanical_verdicts,
     parse_age_years,
 )
+from clinical_demo.profile import PatientProfile
 
 AS_OF = date(2025, 1, 1)
 
@@ -42,6 +43,15 @@ def _patient(
         sex=sex,  # type: ignore[arg-type]
         conditions=conditions or [],
     )
+
+
+def _profile(
+    *,
+    birth: date = date(1990, 6, 15),
+    sex: str = "male",
+    conditions: list[Condition] | None = None,
+) -> PatientProfile:
+    return PatientProfile(_patient(birth=birth, sex=sex, conditions=conditions), AS_OF)
 
 
 def _trial(
@@ -101,9 +111,9 @@ def test_parse_age_years(raw: str | None, expected: int | None) -> None:
 
 
 def test_label_min_age_pass() -> None:
-    p = _patient(birth=date(1990, 1, 1))  # age 35 on AS_OF
+    pr = _profile(birth=date(1990, 1, 1))  # age 35 on AS_OF
     t = _trial(minimum_age="18 Years")
-    v = label_min_age(p, t, AS_OF)
+    v = label_min_age(pr, t)
     assert v is not None
     assert v.verdict == "pass"
     assert v.criterion.field == "min_age"
@@ -111,31 +121,26 @@ def test_label_min_age_pass() -> None:
 
 
 def test_label_min_age_fail_for_underage_patient() -> None:
-    p = _patient(birth=date(2010, 1, 1))  # age 15
+    pr = _profile(birth=date(2010, 1, 1))  # age 15
     t = _trial(minimum_age="18 Years")
-    v = label_min_age(p, t, AS_OF)
+    v = label_min_age(pr, t)
     assert v is not None
     assert v.verdict == "fail"
 
 
 def test_label_min_age_returns_none_when_trial_has_no_min() -> None:
-    p = _patient()
-    t = _trial(minimum_age=None)
-    assert label_min_age(p, t, AS_OF) is None
+    assert label_min_age(_profile(), _trial(minimum_age=None)) is None
 
 
 def test_label_min_age_indeterminate_when_unparseable() -> None:
-    p = _patient()
-    t = _trial(minimum_age="N/A")
-    v = label_min_age(p, t, AS_OF)
+    v = label_min_age(_profile(), _trial(minimum_age="N/A"))
     assert v is not None
     assert v.verdict == "indeterminate"
 
 
 def test_label_max_age_fail_when_patient_too_old() -> None:
-    p = _patient(birth=date(1940, 1, 1))  # age ~85
-    t = _trial(maximum_age="75 Years")
-    v = label_max_age(p, t, AS_OF)
+    pr = _profile(birth=date(1940, 1, 1))  # age ~85
+    v = label_max_age(pr, _trial(maximum_age="75 Years"))
     assert v is not None
     assert v.verdict == "fail"
 
@@ -144,21 +149,21 @@ def test_label_max_age_fail_when_patient_too_old() -> None:
 
 
 def test_label_sex_returns_none_for_all() -> None:
-    assert label_sex(_patient(sex="male"), _trial(sex="ALL")) is None
+    assert label_sex(_profile(sex="male"), _trial(sex="ALL")) is None
 
 
 def test_label_sex_pass_when_match() -> None:
-    v = label_sex(_patient(sex="female"), _trial(sex="FEMALE"))
+    v = label_sex(_profile(sex="female"), _trial(sex="FEMALE"))
     assert v is not None and v.verdict == "pass"
 
 
 def test_label_sex_fail_when_mismatch() -> None:
-    v = label_sex(_patient(sex="male"), _trial(sex="FEMALE"))
+    v = label_sex(_profile(sex="male"), _trial(sex="FEMALE"))
     assert v is not None and v.verdict == "fail"
 
 
 def test_label_sex_indeterminate_for_unknown_patient_sex() -> None:
-    v = label_sex(_patient(sex="unknown"), _trial(sex="MALE"))
+    v = label_sex(_profile(sex="unknown"), _trial(sex="MALE"))
     assert v is not None and v.verdict == "indeterminate"
 
 
@@ -166,22 +171,18 @@ def test_label_sex_indeterminate_for_unknown_patient_sex() -> None:
 
 
 def test_healthy_volunteers_returns_none_when_flag_off() -> None:
-    p = _patient(conditions=[_condition()])
-    t = _trial(healthy_volunteers=False)
-    assert label_healthy_volunteers(p, t, AS_OF) is None
+    pr = _profile(conditions=[_condition()])
+    assert label_healthy_volunteers(pr, _trial(healthy_volunteers=False)) is None
 
 
 def test_healthy_volunteers_pass_when_no_active_conditions() -> None:
-    p = _patient(conditions=[])
-    t = _trial(healthy_volunteers=True)
-    v = label_healthy_volunteers(p, t, AS_OF)
+    v = label_healthy_volunteers(_profile(conditions=[]), _trial(healthy_volunteers=True))
     assert v is not None and v.verdict == "pass"
 
 
 def test_healthy_volunteers_fail_when_patient_has_active_condition() -> None:
-    p = _patient(conditions=[_condition()])
-    t = _trial(healthy_volunteers=True)
-    v = label_healthy_volunteers(p, t, AS_OF)
+    pr = _profile(conditions=[_condition()])
+    v = label_healthy_volunteers(pr, _trial(healthy_volunteers=True))
     assert v is not None and v.verdict == "fail"
     assert "1 active clinical condition" in v.rationale
 
@@ -191,20 +192,18 @@ def test_healthy_volunteers_fail_when_patient_has_active_condition() -> None:
 
 def test_mechanical_verdicts_returns_only_applicable_labels() -> None:
     """A trial with no constraints produces no verdicts."""
-    p = _patient()
-    t = _trial()
-    assert mechanical_verdicts(p, t, AS_OF) == []
+    assert mechanical_verdicts(_profile(), _trial()) == []
 
 
 def test_mechanical_verdicts_combines_multiple_constraints() -> None:
-    p = _patient(birth=date(1990, 1, 1), sex="female")
+    pr = _profile(birth=date(1990, 1, 1), sex="female")
     t = _trial(
         minimum_age="18 Years",
         maximum_age="75 Years",
         sex="FEMALE",
         healthy_volunteers=False,
     )
-    fields = {v.criterion.field for v in mechanical_verdicts(p, t, AS_OF)}
+    fields = {v.criterion.field for v in mechanical_verdicts(pr, t)}
     assert fields == {"min_age", "max_age", "sex"}
 
 

@@ -46,6 +46,7 @@ from clinical_demo.evals.seed import (
     estimate_free_text_criteria,
     mechanical_verdicts,
 )
+from clinical_demo.profile import PatientProfile
 
 logger = logging.getLogger("build_eval_seed")
 
@@ -239,7 +240,8 @@ def build_pair(
     patient: Patient,
     as_of: date,
 ) -> EvalPair:
-    verdicts = mechanical_verdicts(patient, trial, as_of)
+    profile = PatientProfile(patient, as_of)
+    verdicts = mechanical_verdicts(profile, trial)
     free_count = estimate_free_text_criteria(trial.eligibility_text)
     return EvalPair(
         pair_id=f"{member.patient_id[:8]}__{trial.nct_id}",
@@ -337,8 +339,8 @@ def _print_summary(seed: EvalSeed) -> None:
     for s in sorted(by_slice):
         logger.info("    %-22s  %d", s, by_slice[s])
     logger.info("  mechanical verdicts:")
-    for v in ("pass", "fail", "indeterminate"):
-        logger.info("    %-22s  %d", v, by_verdict.get(v, 0))
+    for verdict_label in ("pass", "fail", "indeterminate"):
+        logger.info("    %-22s  %d", verdict_label, by_verdict.get(verdict_label, 0))
     logger.info("  free-text criteria pending human review: %d", free_total)
     logger.info(
         "  pairs marked complete: %d / %d",

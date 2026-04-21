@@ -33,8 +33,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from clinical_demo.domain.patient import Patient
 from clinical_demo.domain.trial import Trial
+from clinical_demo.profile import PatientProfile
 
 CriterionField = Literal[
     "min_age",
@@ -152,7 +152,7 @@ def parse_age_years(raw: str | None) -> int | None:
     return None
 
 
-def label_min_age(patient: Patient, trial: Trial, as_of: date) -> CriterionVerdict | None:
+def label_min_age(profile: PatientProfile, trial: Trial) -> CriterionVerdict | None:
     """Verdict for the trial's minimum-age requirement, if it has one."""
     if not trial.minimum_age:
         return None
@@ -169,17 +169,16 @@ def label_min_age(patient: Patient, trial: Trial, as_of: date) -> CriterionVerdi
             rationale=f"could not parse minimum_age={trial.minimum_age!r}",
             method="mechanical",
         )
-    patient_age = patient.age_years(as_of)
-    passed = patient_age >= expected_years
+    passed = profile.age_years >= expected_years
     return CriterionVerdict(
         criterion=crit,
         verdict="pass" if passed else "fail",
-        rationale=f"patient age {patient_age} vs. min {expected_years}",
+        rationale=f"patient age {profile.age_years} vs. min {expected_years}",
         method="mechanical",
     )
 
 
-def label_max_age(patient: Patient, trial: Trial, as_of: date) -> CriterionVerdict | None:
+def label_max_age(profile: PatientProfile, trial: Trial) -> CriterionVerdict | None:
     """Verdict for the trial's maximum-age requirement, if it has one."""
     if not trial.maximum_age:
         return None
@@ -196,17 +195,16 @@ def label_max_age(patient: Patient, trial: Trial, as_of: date) -> CriterionVerdi
             rationale=f"could not parse maximum_age={trial.maximum_age!r}",
             method="mechanical",
         )
-    patient_age = patient.age_years(as_of)
-    passed = patient_age <= expected_years
+    passed = profile.age_years <= expected_years
     return CriterionVerdict(
         criterion=crit,
         verdict="pass" if passed else "fail",
-        rationale=f"patient age {patient_age} vs. max {expected_years}",
+        rationale=f"patient age {profile.age_years} vs. max {expected_years}",
         method="mechanical",
     )
 
 
-def label_sex(patient: Patient, trial: Trial) -> CriterionVerdict | None:
+def label_sex(profile: PatientProfile, trial: Trial) -> CriterionVerdict | None:
     """Verdict for the trial's sex restriction.
 
     Trials with `sex=ALL` get no verdict (no constraint to check).
@@ -221,7 +219,7 @@ def label_sex(patient: Patient, trial: Trial) -> CriterionVerdict | None:
         expected=trial_sex,
         source_text=trial.sex,
     )
-    patient_sex = patient.sex.lower()
+    patient_sex = profile.sex.lower()
     if trial_sex in {"MALE", "FEMALE"} and patient_sex in {"male", "female"}:
         passed = patient_sex == trial_sex.lower()
         return CriterionVerdict(
@@ -240,9 +238,7 @@ def label_sex(patient: Patient, trial: Trial) -> CriterionVerdict | None:
     )
 
 
-def label_healthy_volunteers(
-    patient: Patient, trial: Trial, as_of: date
-) -> CriterionVerdict | None:
+def label_healthy_volunteers(profile: PatientProfile, trial: Trial) -> CriterionVerdict | None:
     """Verdict for the 'healthy volunteers only' flag.
 
     If `healthy_volunteers=True`, any active clinical condition
@@ -256,7 +252,7 @@ def label_healthy_volunteers(
         expected="no active clinical conditions",
         source_text="healthy_volunteers=True",
     )
-    active = patient.active_conditions(as_of)
+    active = profile.active_conditions
     if not active:
         return CriterionVerdict(
             criterion=crit,
@@ -275,7 +271,7 @@ def label_healthy_volunteers(
     )
 
 
-def mechanical_verdicts(patient: Patient, trial: Trial, as_of: date) -> list[CriterionVerdict]:
+def mechanical_verdicts(profile: PatientProfile, trial: Trial) -> list[CriterionVerdict]:
     """All structured-field verdicts the mechanical labeler can produce.
 
     Returns an empty list if the trial has no structured restrictions
@@ -283,10 +279,10 @@ def mechanical_verdicts(patient: Patient, trial: Trial, as_of: date) -> list[Cri
     """
     out: list[CriterionVerdict] = []
     for v in (
-        label_min_age(patient, trial, as_of),
-        label_max_age(patient, trial, as_of),
-        label_sex(patient, trial),
-        label_healthy_volunteers(patient, trial, as_of),
+        label_min_age(profile, trial),
+        label_max_age(profile, trial),
+        label_sex(profile, trial),
+        label_healthy_volunteers(profile, trial),
     ):
         if v is not None:
             out.append(v)
