@@ -42,6 +42,7 @@ uv run mypy                                # type check
 uv run pre-commit run --all-files
 uv run marimo edit marimo/explore_synthea.py  # patient cohort tour
 uv run marimo edit marimo/explore_trials.py   # trial set tour
+uv run marimo edit marimo/explore_chia.py     # Chia annotation tour
 ```
 
 ## Data
@@ -69,6 +70,16 @@ from Synthea, scored by multi-condition richness):
 ```bash
 uv run python scripts/curate_cohort.py
 # writes data/curated/cohort_manifest.json
+```
+
+Download the Chia corpus (1,000 hand-annotated trials in BRAT format,
+2.5 MB, CC BY 4.0):
+
+```bash
+mkdir -p data/raw/chia && cd data/raw/chia
+curl -sL -A 'Mozilla/5.0' -o chia_with_scope.zip 'https://ndownloader.figshare.com/files/21728850'
+unzip -q chia_with_scope.zip
+# yields ~4000 .txt/.ann pairs across 1000 trials
 ```
 
 ## License

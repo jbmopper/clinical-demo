@@ -118,7 +118,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 1.2 | Pull Synthea sample data; write loader that yields parsed Patient objects (demographics, conditions, observations, medications) from per-patient FHIR bundles. *Done.* | 4 |
 | 1.3 | Curate the working patient cohort (~150) by querying the loader for cardiometabolic profiles; persist a manifest. *Done.* | 2 |
 | 1.4 | Pull ~30 trials from CT.gov v2 API; persist raw JSON + a normalized trial record. *Done.* | 3 |
-| 1.5 | Pull Chia corpus, parse the BRAT annotations, build a Pydantic representation of the Chia schema (entities + relations). | 4 |
+| 1.5 | Pull Chia corpus, parse the BRAT annotations, build a Pydantic representation of the Chia schema (entities + relations). *Done.* | 4 |
 | 1.6 | Hand-pick ~30 trials and ~50 (patient, trial) pairs as the **eval seed set**. Hand-label expected per-criterion verdicts for the pairs (this is the most boring, most important task in the whole project — block out a real afternoon). | 6 |
 | 1.7 | Patient Profiler v0: deterministic FHIR → typed Python objects with `as_of_date` slicing. | 4 |
 | 1.8 | Criterion Extractor v0: single model, single prompt, JSON-schema output mirroring the Chia entity types. No retries, no router. | 4 |
@@ -435,6 +435,44 @@ the wrapper has no value) and adds two tests. Loader docstring updated
 accordingly. The bug was real, hidden, and exactly the kind of thing
 the cohort sanity-check exists to surface.
 
+### D-17. Chia loader keeps the entity/relation type vocabulary open
+**Rejected:** typing entity / relation labels as a closed enum drawn
+from the published BRAT `annotation.conf`.
+**Why:** scanning the actual corpus before designing the model
+revealed that reality differs from the documentation in two
+directions. The schema config lists 24 entity types, but the corpus
+uses 31 — including process-of-annotation markers (`Parsing_Error`,
+`Grammar_Error`, `Context_Error`), judgement annotations
+(`Subjective_judgement`, `Undefined_semantics`, `Not_a_criteria`),
+and one apparent typo (`c-Requires_causality`). Relations are even
+worse: 5 documented, 14 in use (`Has_value`, `Has_temporal`,
+`Has_qualifier`, `Subsumes`, `Has_index`, etc.). A closed enum would
+force one of two bad choices: drop ~3% of annotations, or churn the
+enum every time a new corpus is added. Instead we keep types as
+plain strings, expose two `frozenset` constants
+(`DOCUMENTED_ENTITY_TYPES`, `DOCUMENTED_RELATION_TYPES`) so consumers
+can validate explicitly when they want to, and let downstream code
+(extractor / matcher) decide what to use, ignore, or normalize. The
+truth is that this corpus is messier than its spec — the model
+should reflect that.
+
+### D-18. Discontinuous spans and n-ary equivalence groups are first-class
+**Rejected:** flattening discontinuous-span entities to their
+bounding range, and splaying n-ary `OR` groups into pairwise binary
+relations.
+**Why:** 1,822 of the 48,870 entities (~3.7%) have discontinuous
+spans — usually clinically meaningful pulls like
+"major impairment of [renal] function" + "[hepatic]" from a single
+phrase. Collapsing them to a bounding range loses the distinction
+between "renal function" and "hepatic function" (the conjoined
+words live in different parts of the surface). N-ary OR groups in
+the corpus go up to 25 members; the cardinality matters semantically
+(a 25-way OR is a clinically broad permission, not an arbitrary
+nesting of binary ORs). So `ChiaEntity.spans` is a list, and
+`ChiaEquivalenceGroup.member_ids` is a list — both faithful to the
+BRAT structure. Cost: callers that just want a single (start, end)
+get a `.start` / `.end` convenience pair on the entity.
+
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
 **Why:** the writeup should be *informed by what was actually built*, not
@@ -446,8 +484,15 @@ match the writeup rather than the other way around.
 ## 13. Open questions (to keep visible during build)
 
 - Will the Chia entity schema be sufficient as the criterion structured
-  representation, or will it need extension for our domains? (Decide after
-  Phase 1 task 1.5.)
+  representation, or will it need extension for our domains? (Decided in
+  Phase 1 task 1.5: the Chia vocabulary is **rich enough** for the
+  extractor's structural targets — Condition, Drug, Measurement, Value,
+  Temporal, Qualifier, Negation cover the criteria types in our chosen
+  trial slices. We will *not* try to extend the schema; instead the
+  matcher will normalize Chia surface text against the patient model
+  separately. Open variant: whether to surface `Non-representable` /
+  `Not_a_criteria` as a "skip" verdict in the matcher — defer to
+  task 1.9.)
 - How many critique-loop iterations are useful before diminishing returns?
   (Decide after Phase 2 task 2.2 with real measurements.)
 - For the LLM-as-judge calibration, is there enough human-judge agreement on
