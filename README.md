@@ -3,12 +3,13 @@
 Clinical Trial Eligibility Co-Pilot — a portfolio demo built for a Generative
 AI Forward Deployed Engineer interview.
 
-> **Status: Phase 1 nearly done.** Curated data products are in
-> place (trials, cohort, Chia corpus, eval seed set, patient profile
+> **Status: Phase 1 complete.** Curated data products are in place
+> (trials, cohort, Chia corpus, eval seed set, patient profile
 > primitives). LLM criterion extractor v0, deterministic matcher v0,
-> and the end-to-end `score_pair` glue (CLI + library) are built and
-> unit-tested (249 tests passing). Next up: Langfuse wiring from
-> day one.
+> the end-to-end `score_pair` glue (CLI + library), and Langfuse
+> tracing are built and unit-tested (264 tests passing). Phase 2 next:
+> LangGraph orchestration, the eval harness, the
+> aggregator/critic loop, and the reviewer UI.
 
 ## What it is (one paragraph)
 
@@ -202,6 +203,42 @@ result = score_pair(patient, trial, as_of=date(2025, 1, 1))
 print(result.eligibility, result.summary.by_verdict)
 for v in result.verdicts:
     print(v.verdict, v.reason, v.criterion.source_text)
+```
+
+## Observability
+
+Langfuse v4 traces every LLM call and every scoring run. Tracing is
+opt-in via env: set both `LANGFUSE_PUBLIC_KEY` and
+`LANGFUSE_SECRET_KEY` (and optionally `LANGFUSE_HOST` or its alias
+`LANGFUSE_BASE_URL`) and the next CLI invocation ships its spans;
+omit them and the observability shim is a no-op (no SDK construction,
+no exporter thread, no warnings). The shim is also defensive: a
+failing tracer is logged at WARNING and never breaks the application
+path it instruments.
+
+Span shape:
+
+- `score_pair` — one parent `span` per (patient, trial) pair, tagged
+  with `patient_id`, `nct_id`, `eligibility`, and verdict counts in
+  metadata so the Langfuse UI can pivot on any of them without joins.
+- `extract_criteria` — one nested `generation` per LLM call, with
+  `model`, `prompt_version`, the eligibility text as input, the
+  parsed criteria as output, token usage, estimated USD cost, and
+  latency. Refusals are tagged `WARNING` with the refusal text on
+  `output`; missing-parsed errors and other exceptions are tagged
+  `ERROR`.
+
+To trace your own LLM calls (later phases), use the same shim:
+
+```python
+from clinical_demo.observability import traced
+
+with traced("aggregate_verdicts", as_type="generation",
+            model="gpt-4o-mini", input=prompt) as span:
+    response = client.chat.completions.create(...)
+    span.update(output=response.choices[0].message.content,
+                usage_details={"input": response.usage.prompt_tokens,
+                               "output": response.usage.completion_tokens})
 ```
 
 ## License

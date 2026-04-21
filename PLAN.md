@@ -124,7 +124,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 1.8 | Criterion Extractor v0: single model, single prompt, JSON-schema output mirroring the Chia entity types. No retries, no router. *Done — OpenAI structured outputs (`gpt-4o-mini-2024-07-18` default), matcher-ready discriminated schema, 2 few-shot examples drawn from real eligibility text, prompt versioned at `extractor-v0.1`, smoke-script `extract_criteria.py`, 34 unit tests with stub client.* | 4 |
 | 1.9 | Deterministic matcher v0: covers numeric criteria, age, sex, active condition presence/absence. Returns `pass | fail | indeterminate`. *Done — `MatchVerdict` with typed `Evidence` rows, 8-kind dispatcher (age, sex, condition_present/absent, medication_present/absent, measurement_threshold, temporal_window, free_text), polarity/negation XOR truth-table, surface-form → ConceptSet lookup table for cardiometabolic conditions and labs, 79 unit tests (per-kind pass/fail/indeterminate + integration), matcher pinned at `matcher-v0.1`.* | 4 |
 | 1.10 | Glue script: `score_pair(patient, trial) -> List[CriterionVerdict]`, runs from the CLI. *Done — `clinical_demo.scoring.score_pair()` library entry returns a `ScorePairResult` (verdicts + extraction + summary + conservative `eligibility` rollup), `scripts/score_pair.py` CLI with `--no-llm` replay mode, `--force-extract`, `--json`, on-disk extraction cache shared with `extract_criteria.py`, 11 unit tests pinning the rollup truth table and the cache round-trip.* | 2 |
-| 1.11 | Wire Langfuse from day one — every LLM call traced; project name `clinical-demo`. | 2 |
+| 1.11 | Wire Langfuse from day one — every LLM call traced; project name `clinical-demo`. *Done — `clinical_demo.observability` shim wraps Langfuse v4 (`@observe`-style `traced(...)` context manager that no-ops when keys are absent and is defensive on every call), `extract_criteria` emits one `generation` per call (model + prompt_version + input/output + tokens + cost + latency, refusals tagged `WARNING`), `score_pair` opens a parent `span` per (patient, trial) pair tagged with `patient_id`/`nct_id`/`eligibility`/verdict counts so the extractor's generation nests under it; CLI scripts `flush()` at exit; 15 unit tests pin the no-op + recording-client contracts.* | 2 |
 | **Phase 1 total** | | **~37 hr** |
 | **Exit criterion** | One CLI command takes one patient + one trial and prints per-criterion verdicts with citations. Ugly is fine. | |
 
@@ -763,6 +763,65 @@ file is a `StoredExtraction` JSON keyed by NCT id, written by
 makes the contract explicit: refuse to make a network call; fail
 loudly on cache miss. This also makes CI-grade end-to-end tests
 possible without an API key.
+
+### D-41. Observability shim that no-ops when unconfigured
+**Rejected:** importing `langfuse.openai` as a drop-in replacement
+for the OpenAI client (the SDK's own quickstart pattern), and
+crashing if Langfuse keys aren't set.
+**Why:** two reasons. (1) The OpenAI drop-in routes *every* call
+through Langfuse's wrapper, including the ones in unit tests that
+inject a stub client via the `_ClientLike` Protocol — a bad seam
+to fight every time we want to add a parallel evaluator or a
+non-OpenAI provider. Wrapping at *our* extractor boundary keeps
+observability decoupled from the LLM SDK and matches the seam
+where we already control prompt-version, cost, and refusal
+handling. (2) A fresh checkout, CI run, or local dev session
+without Langfuse credentials must work. The shim returns a
+`_NoopSpan` sentinel whose `.update()` / `.end()` accept any
+kwargs and discard them, so the call sites have one shape:
+`with traced(...) as span:`. No `if span is None` everywhere.
+
+### D-42. Defensive on every Langfuse call (observability never breaks the app)
+**Rejected:** letting SDK exceptions escape to the application.
+**Why:** an analytics provider going down (or a new SDK version
+changing a method signature) cannot be allowed to break an
+eligibility verdict path. Every call through the shim is
+try/except'd, with failures logged at WARNING and execution
+continuing with a no-op span. We tolerate a lost trace; we do not
+tolerate a lost or wrong verdict because the tracer panicked.
+Symmetric to: pre-commit gitleaks blocks credential leaks, the
+`SecretStr` fields in Settings prevent log spillage, and the
+shim's "fail open" stance prevents observability failures from
+becoming application failures.
+
+### D-43. One generation per LLM call, one parent span per scoring pair
+**Rejected:** a single trace per CLI invocation, or a span per
+matcher kind, or a flat list of generations with no parent.
+**Why:** the unit of decision in this system is the (patient,
+trial) pair, so that's the parent observation. The extractor's
+`generation` (which is what carries cost / tokens / model in the
+Langfuse UI) nests under that parent automatically because we use
+`start_as_current_observation`. Pivoting on `eligibility`,
+`patient_id`, `nct_id`, or verdict counts in the dashboard becomes
+a one-row query rather than a join across spans. The matcher does
+*not* emit per-criterion observations: it's deterministic, has no
+cost, and emitting one span per criterion would balloon the
+ingest volume without adding signal — the per-criterion verdicts
+are already on the parent's `output`. If/when matcher v0.2 grows
+expensive components (a vector lookup, an LLM-backed concept
+mapper), they earn their own generation.
+
+### D-44. Tag with metadata, not user/session
+**Rejected:** mapping `patient_id` → Langfuse `user_id` and the
+CLI invocation → `session_id`.
+**Why:** Langfuse's user/session model is built around a human
+end-user with a chat history; in our system the "user" is the
+clinician operating the reviewer UI, not the patient being
+screened, and the "session" semantics don't fit batch eligibility
+runs at all. Putting patient/trial ids into `metadata` instead
+preserves the full pivot capability without abusing the schema.
+This leaves `user_id` and `session_id` available later for the
+reviewer UI to populate correctly.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
