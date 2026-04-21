@@ -116,7 +116,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 |---|---|---|
 | 1.1 | Project scaffolding: Python 3.12, `uv`, repo layout, ruff/black, pre-commit, `.env.example`, README stub, dependency pinning. | 2 |
 | 1.2 | Pull Synthea sample data; write loader that yields parsed Patient objects (demographics, conditions, observations, medications) from per-patient FHIR bundles. *Done.* | 4 |
-| 1.3 | Curate the working patient cohort (~150) by querying the loader for cardiometabolic profiles; persist a manifest. | 2 |
+| 1.3 | Curate the working patient cohort (~150) by querying the loader for cardiometabolic profiles; persist a manifest. *Done.* | 2 |
 | 1.4 | Pull ~30 trials from CT.gov v2 API; persist raw JSON + a normalized trial record. *Done.* | 3 |
 | 1.5 | Pull Chia corpus, parse the BRAT annotations, build a Pydantic representation of the Chia schema (entities + relations). | 4 |
 | 1.6 | Hand-pick ~30 trials and ~50 (patient, trial) pairs as the **eval seed set**. Hand-label expected per-criterion verdicts for the pairs (this is the most boring, most important task in the whole project — block out a real afternoon). | 6 |
@@ -401,6 +401,39 @@ domain model holds them as the source provides them; downstream
 consumers (matcher, UI) parse on demand with the right amount of
 domain context. This is the same "convert once at the boundary, only
 the fields you'll use" rule that the patient model follows.
+
+### D-15. Cohort curation by weighted score, not random sample
+**Rejected:** random sample of cardiometabolic patients; hand-curation
+of all 150.
+**Why:** the eligible Synthea pool is 267 patients with at least one
+cardiometabolic SNOMED Condition active in 2025. A random 150 would be
+dominated by prediabetes-only patients (Synthea's most common
+cardiometabolic finding), giving boring "indeterminate" verdicts on
+T2DM trials. Instead, score = `2 * core_count + prediabetes_count`
+where the core set is T2DM, essential HTN, hypertensive disorder,
+hyperlipidemia, and pure hypercholesterolemia. The 2x weight pulls
+multi-condition patients to the top while still admitting
+prediabetes-only patients as long-tail near-miss cases. CKD is
+*excluded* from the cohort filter because Synthea emits ~12 CKD
+patients across all 555 bundles — too sparse to slice meaningfully.
+The curation date (`as_of`) is hard-coded in the script (2025-01-01)
+and persisted in the manifest so the cohort is reproducible without
+depending on the system clock. Final cohort: 150 patients, 74% with
+≥2 cardiometabolic conditions, 100% SBP / 93% LDL / 50% HbA1c / 50%
+eGFR availability.
+
+### D-16. BP-panel components fixed in loader as part of cohort work
+**Rejected:** deferring the loader bug to task 1.7 (Patient Profiler).
+**Why:** while profiling Synthea for cohort curation we discovered the
+loader was silently dropping every blood pressure measurement: Synthea
+encodes BP as a panel under LOINC 85354-9 with no top-level value, and
+the loader only handled top-level `valueQuantity`. Without the fix, 0
+of 555 patients had a systolic BP and the cohort manifest would have
+shown that fake limitation as a real one. Fix is a small generalization
+(one `_parse_observation` returns a list; expands `component[]` when
+the wrapper has no value) and adds two tests. Loader docstring updated
+accordingly. The bug was real, hidden, and exactly the kind of thing
+the cohort sanity-check exists to surface.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

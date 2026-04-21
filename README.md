@@ -63,6 +63,14 @@ uv run python scripts/curate_trials.py
 # writes data/curated/trials/<NCT_ID>.json + data/curated/trials_manifest.json
 ```
 
+Build the working patient cohort (150 cardiometabolic-tilted patients
+from Synthea, scored by multi-condition richness):
+
+```bash
+uv run python scripts/curate_cohort.py
+# writes data/curated/cohort_manifest.json
+```
+
 ## License
 
 MIT — see [`LICENSE`](./LICENSE).
