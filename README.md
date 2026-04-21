@@ -3,13 +3,16 @@
 Clinical Trial Eligibility Co-Pilot — a portfolio demo built for a Generative
 AI Forward Deployed Engineer interview.
 
-> **Status: Phase 1 complete.** Curated data products are in place
-> (trials, cohort, Chia corpus, eval seed set, patient profile
-> primitives). LLM criterion extractor v0, deterministic matcher v0,
-> the end-to-end `score_pair` glue (CLI + library), and Langfuse
-> tracing are built and unit-tested (264 tests passing). Phase 2 next:
-> LangGraph orchestration, the eval harness, the
-> aggregator/critic loop, and the reviewer UI.
+> **Status: Phase 2 in progress.** Phase 1 deliverables (curated
+> data, extractor v0, deterministic matcher v0, end-to-end
+> `score_pair`, Langfuse tracing) are complete. Phase 2 task 2.1 just
+> landed: the scoring pipeline now runs through a LangGraph
+> orchestrator (`score_pair_graph()`) with per-criterion fan-out, a
+> deterministic-first router, an LLM matcher node for free-text
+> criteria, and a join+rollup. Imperative `score_pair()` and the
+> graph version run side-by-side until the eval harness in 2.3
+> confirms parity. **299 tests passing.** Up next: aggregator/critic
+> loop, eval harness, and the reviewer UI.
 
 ## What it is (one paragraph)
 
@@ -50,6 +53,8 @@ uv run marimo edit marimo/explore_synthea.py    # patient cohort tour
 uv run marimo edit marimo/explore_trials.py     # trial set tour
 uv run marimo edit marimo/explore_chia.py       # Chia annotation tour
 uv run marimo edit marimo/explore_eval_seed.py  # eval seed-set tour
+uv run python scripts/score_pair.py --help        # imperative orchestrator
+uv run python scripts/score_pair_graph.py --help  # LangGraph orchestrator
 ```
 
 ## Data
@@ -205,6 +210,52 @@ for v in result.verdicts:
     print(v.verdict, v.reason, v.criterion.source_text)
 ```
 
+## Orchestration (LangGraph)
+
+Phase 2 introduces `clinical_demo.graph`, a LangGraph
+implementation of the same pipeline. Same input, same
+`ScorePairResult` envelope; the difference is internal — fan-out
+parallelism over criteria, an LLM matcher node for free-text
+criteria the deterministic matcher cannot decide structurally, and
+a clean seam where Phase 2.2's critic loop will plug in.
+
+Graph shape:
+
+```
+START → extract → [conditional fan-out: one Send per criterion]
+                       ├─ deterministic_match  (kind != free_text)
+                       └─ llm_match            (kind == free_text)
+                  → rollup → END
+```
+
+The two implementations run side by side until the eval harness
+in 2.3 confirms parity. Drive the graph from a script:
+
+```bash
+uv run python scripts/score_pair_graph.py \
+    --patient-id <id> --nct-id <nct>
+```
+
+Or from Python:
+
+```python
+from datetime import date
+from clinical_demo.graph import score_pair_graph
+
+result = score_pair_graph(patient, trial, as_of=date(2025, 1, 1))
+```
+
+Routing rule (v0): `kind == "free_text"` → LLM matcher; everything
+else → deterministic matcher. The LLM matcher receives a small
+typed patient snapshot (age, sex, active conditions, current
+medications) — never narrative text — to keep the prompt-injection
+surface narrow before Phase 3.4's red-team set lands. Polarity
+(inclusion/exclusion) and negation are applied downstream by the
+node itself, not the model, so the LLM only ever decides the
+predicate of the criterion. The LLM matcher's verdicts carry
+`matcher_version="llm-matcher-v0.1"` so eval consumers can pivot
+on which path produced each verdict.
+
 ## Observability
 
 Langfuse v4 traces every LLM call and every scoring run. Tracing is
@@ -218,15 +269,23 @@ path it instruments.
 
 Span shape:
 
-- `score_pair` — one parent `span` per (patient, trial) pair, tagged
-  with `patient_id`, `nct_id`, `eligibility`, and verdict counts in
-  metadata so the Langfuse UI can pivot on any of them without joins.
+- `score_pair` (or `score_pair_graph` for the LangGraph orchestrator)
+  — one parent `span` per (patient, trial) pair, tagged with
+  `patient_id`, `nct_id`, `eligibility`, and verdict counts in
+  metadata so the Langfuse UI can pivot on any of them without
+  joins. The graph variant additionally tags `orchestrator=langgraph`
+  so the two implementations can be compared without filter gymnastics.
 - `extract_criteria` — one nested `generation` per LLM call, with
   `model`, `prompt_version`, the eligibility text as input, the
   parsed criteria as output, token usage, estimated USD cost, and
   latency. Refusals are tagged `WARNING` with the refusal text on
   `output`; missing-parsed errors and other exceptions are tagged
   `ERROR`.
+- `llm_match` — one nested `generation` per free-text criterion the
+  LLM matcher decides, with `model`, `prompt_version`,
+  `criterion_index` (so a multi-free-text-criterion run can be
+  decomposed in the dashboard), the prompt as input, the parsed
+  verdict as output, usage and cost.
 
 To trace your own LLM calls (later phases), use the same shim:
 

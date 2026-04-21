@@ -132,7 +132,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 
 | # | Task | Est. (hr) |
 |---|---|---|
-| 2.1 | LangGraph migration: per-criterion fan-out, deterministic-first conditional routing, LLM matcher node, join. | 5 |
+| 2.1 | LangGraph migration: per-criterion fan-out, deterministic-first conditional routing, LLM matcher node, join. *Done — `clinical_demo.graph` package: `ScoringState` TypedDict with an `operator.add` reducer over `(criterion_index, MatchVerdict)` tuples; nodes for `extract`, deterministic match (thin wrapper over `match_criterion`), LLM match (new — strict structured-output OpenAI call gated on `kind == "free_text"`, with stub-friendly Protocol client), and `rollup` (sort indices, reuse imperative `_summarize`/`_rollup`); routing via `fan_out_criteria` returning `Send` objects (or rollup name when zero criteria); `score_pair_graph()` mirrors `score_pair()` with the same `ScorePairResult` envelope; opens a parent `score_pair_graph` span tagged `orchestrator=langgraph` so extractor + per-criterion `llm_match` generations nest under it. Side-by-side mirror script `scripts/score_pair_graph.py`. 35 new tests pin state, routing, both matcher nodes, end-to-end, and span structure (299 total passing). Decisions D-45..D-49.* | 5 |
 | 2.2 | Aggregator + Critic loop: bounded revision iterations, termination conditions, human-checkpoint hook. | 4 |
 | 2.3 | Eval harness scaffolding: dataset format, runner, results store, basic CLI (`eval run`, `eval report`). | 4 |
 | 2.4 | Layer 1 eval — deterministic: per-criterion accuracy on numeric/structured criteria. | 2 |
@@ -822,6 +822,78 @@ runs at all. Putting patient/trial ids into `metadata` instead
 preserves the full pivot capability without abusing the schema.
 This leaves `user_id` and `session_id` available later for the
 reviewer UI to populate correctly.
+
+### D-45. State as `TypedDict` + `operator.add` reducer, not Pydantic
+**Rejected:** `ScoringState` as a Pydantic `BaseModel` with custom
+field validators.
+**Why:** LangGraph reducers fire on every concurrent state update,
+and Pydantic re-validates the model on each call. That's wrong on
+two axes — it's slow on the hot path, and it's incorrect because
+intermediate states *must* violate the "all criteria scored"
+invariant by design (verdicts accumulate one branch at a time during
+fan-in). `TypedDict + Annotated[list, operator.add]` is what every
+LangGraph example uses for a reason. Domain models that *are*
+Pydantic (Patient, Trial, MatchVerdict, ExtractionResult) sit
+*inside* the dict — Pydantic's invariants apply to them
+individually; the dict is just the carrier.
+
+### D-46. Carry `(criterion_index, MatchVerdict)` in the reducer, not bare verdicts
+**Rejected:** reducer slot of `list[MatchVerdict]`, sort verdicts
+later by some derived key (criterion_id, source_text hash).
+**Why:** `ExtractedCriterion` has no stable id field today, and
+adding one would touch the extractor schema and every existing
+matcher fixture. Parallel fan-in does not preserve arrival order,
+so for deterministic verdict ordering (which we want for eval,
+replay, human review) we need an explicit index. Carrying it as
+the first element of a 2-tuple keeps the reducer cheap (concat) and
+the ordering restoration trivial (sort on key 0). The rollup node
+strips the indices when constructing the public `MatchVerdict`
+list.
+
+### D-47. Per-criterion routing inside `fan_out_criteria`, not a separate router node
+**Rejected:** `extract → router_node → fan_out_to_matchers`.
+**Why:** A bookkeeping node that does nothing visible adds depth to
+the trace tree, an extra hop in the runtime, and zero correctness
+value over inlining the routing decision in the conditional edge
+function. The decision is per-criterion; making it inside the same
+function that emits the `Send` objects keeps it co-located with the
+fan-out (so future routing rules — say, the v0.2 deterministic →
+LLM fallback — land in one place). The empty-criteria edge case is
+handled by returning the rollup node name directly (a `str`
+return), not an empty `Send` list, which would leave the graph
+stuck after `extract`.
+
+### D-48. LLM matcher is a separate prompt + node, not the extractor reused
+**Rejected:** repurposing the extractor's prompt to also emit a
+verdict on free-text criteria.
+**Why:** The extractor's job is *structuring*; the matcher's job is
+*deciding*. They have different system prompts, different output
+schemas, and different cost / quality trade-offs (matchers run N
+times per trial, extractors once). Conflating them would make the
+prompt longer (worse cache hit rate), the schema looser (worse
+validation), and the eval harder (you can't pivot extraction
+quality independently from matching quality). Costs the same in
+tokens to keep them separate and pays back in clarity.
+
+The LLM matcher's patient snapshot is a *typed bundle* (age, sex,
+active conditions, current medications) — never narrative text. Two
+reasons: (a) it keeps the prompt-injection surface narrow before
+Phase 3.4 builds the red-team set, and (b) for the kind of
+free-text criteria v0 sees (mobility, allergies, informed consent,
+geography), the typed snapshot is usually sufficient or
+`indeterminate` is the honest answer.
+
+### D-49. Side-by-side `score_pair()` and `score_pair_graph()` for one cycle
+**Rejected:** rename + replace the imperative `score_pair()` with
+the graph version in one commit.
+**Why:** Side-by-side gives a cheap A/B regression test for free —
+the eval harness in 2.3 can run both orchestrators on the same
+inputs and surface any divergence, which is also the cleanest way
+to validate the LLM matcher's behaviour against the deterministic
+baseline. The cost is one extra script file (`score_pair_graph.py`)
+and ~50 lines of mostly-shared CLI plumbing. Once eval confirms
+parity (or surfaces the intended differences), the imperative path
+will delegate to the graph and the duplicate disappears.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
