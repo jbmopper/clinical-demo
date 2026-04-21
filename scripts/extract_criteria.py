@@ -27,38 +27,21 @@ import time
 from collections import Counter
 from pathlib import Path
 
-from pydantic import BaseModel
-
 from clinical_demo.data.clinicaltrials import trial_from_raw
 from clinical_demo.domain.trial import Trial
 from clinical_demo.extractor import (
-    ExtractedCriteria,
     ExtractorError,
     ExtractorRefusalError,
-    ExtractorRunMeta,
     build_messages,
     extract_criteria,
 )
+from clinical_demo.scoring import StoredExtraction
 
 logger = logging.getLogger(__name__)
 
 CURATED_TRIALS_DIR = Path("data/curated/trials")
 TRIALS_MANIFEST = Path("data/curated/trials_manifest.json")
 EXTRACTIONS_DIR = Path("data/curated/extractions")
-
-
-class StoredExtraction(BaseModel):
-    """On-disk envelope: trial id + extraction + run metadata.
-
-    Persisted as one file per trial under
-    `data/curated/extractions/`. Storing the run metadata alongside
-    the payload means that when we re-run the extractor with a new
-    prompt or model, the diff is meaningful — we can attribute
-    quality changes to specific revisions."""
-
-    nct_id: str
-    extraction: ExtractedCriteria
-    meta: ExtractorRunMeta
 
 
 def _load_trial(nct_id: str) -> Trial:
