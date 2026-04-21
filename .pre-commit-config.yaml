@@ -6,7 +6,13 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        # Fixtures are byte-snapshots of external data (Synthea FHIR
+        # bundles, CT.gov JSON, Chia BRAT files); BRAT in particular
+        # records *byte offsets* into the .txt files, so stripping
+        # trailing whitespace on lines silently corrupts those offsets.
+        exclude: ^tests/fixtures/
       - id: end-of-file-fixer
+        exclude: ^tests/fixtures/
       - id: check-yaml
       - id: check-toml
       - id: check-merge-conflict
