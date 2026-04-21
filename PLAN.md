@@ -122,7 +122,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 1.6 | Hand-pick ~30 trials and ~50 (patient, trial) pairs as the **eval seed set**. Hand-label expected per-criterion verdicts for the pairs (this is the most boring, most important task in the whole project — block out a real afternoon). *Skeleton + mechanical pass done; free-text human pass owed (~856 criteria across 49 pairs).* | 6 |
 | 1.7 | Patient Profiler v0: deterministic FHIR → typed Python objects with `as_of_date` slicing. *Done — `PatientProfile` wrapper, 5-state threshold primitives (meets/does_not_meet/no_data/stale_data/unit_mismatch), curated SNOMED+LOINC ConceptSets, eval seed labelers refactored to use the profile.* | 4 |
 | 1.8 | Criterion Extractor v0: single model, single prompt, JSON-schema output mirroring the Chia entity types. No retries, no router. *Done — OpenAI structured outputs (`gpt-4o-mini-2024-07-18` default), matcher-ready discriminated schema, 2 few-shot examples drawn from real eligibility text, prompt versioned at `extractor-v0.1`, smoke-script `extract_criteria.py`, 34 unit tests with stub client.* | 4 |
-| 1.9 | Deterministic matcher v0: covers numeric criteria, age, sex, active condition presence/absence. Returns `pass | fail | indeterminate`. | 4 |
+| 1.9 | Deterministic matcher v0: covers numeric criteria, age, sex, active condition presence/absence. Returns `pass | fail | indeterminate`. *Done — `MatchVerdict` with typed `Evidence` rows, 8-kind dispatcher (age, sex, condition_present/absent, medication_present/absent, measurement_threshold, temporal_window, free_text), polarity/negation XOR truth-table, surface-form → ConceptSet lookup table for cardiometabolic conditions and labs, 79 unit tests (per-kind pass/fail/indeterminate + integration), matcher pinned at `matcher-v0.1`.* | 4 |
 | 1.10 | Glue script: `score_pair(patient, trial) -> List[CriterionVerdict]`, runs from the CLI. | 2 |
 | 1.11 | Wire Langfuse from day one — every LLM call traced; project name `clinical-demo`. | 2 |
 | **Phase 1 total** | | **~37 hr** |
@@ -645,6 +645,84 @@ leakage into logs/exception messages; `lru_cache` on the accessor
 makes the env-parse cost a one-time event; tests can construct an
 explicit `Settings` instance to exercise edge cases without touching
 the process env.
+
+### D-32. Two parallel verdict types: `CriterionVerdict` (eval seed) and `MatchVerdict` (matcher)
+**Rejected:** widening the existing `evals.seed.CriterionVerdict` to
+also carry matcher output.
+**Why:** they answer different questions over different inputs.
+`CriterionVerdict` wraps a `StructuredCriterion` (CT.gov-derived)
+with a hand-applied label and a `method ∈ {mechanical, human_review}`
+field — its job is *ground truth*. `MatchVerdict` wraps an
+`ExtractedCriterion` (LLM-derived) with a typed `Evidence` list and
+`matcher_version` — its job is *system output*. Both share the
+`Verdict = Literal["pass", "fail", "indeterminate"]` enum so the
+eval harness can compare them; everything else diverges. Conflating
+them would force one schema to carry foreign fields it has no use
+for and would couple the two release cadences (every matcher rev
+would touch the eval-seed migration). Cost of keeping them separate:
+one alignment function in the eval harness later. Cost of merging
+them: a model with two purposes serving neither well.
+
+### D-33. Closed `VerdictReason` enum, not free-text rationale only
+**Rejected:** a single `rationale: str` field carrying everything.
+**Why:** free-text rationales are great for the reviewer UI tooltip,
+but they're a nightmare for regression analysis. With a closed
+`VerdictReason` enum (`ok`, `no_data`, `stale_data`, `unit_mismatch`,
+`unmapped_concept`, `unsupported_kind`, `unsupported_mood`,
+`human_review_required`, `ambiguous_criterion`) an analyst can pivot
+"matcher's `unmapped_concept` rate jumped 30% between revisions" in
+SQL, no NLP. The free-text `rationale` stays for human consumption.
+Adding a new reason is a deliberate act — exactly the property we
+want when trying to keep matcher behaviour auditable.
+
+### D-34. Surface-form → ConceptSet lookup is hand-curated and small
+**Rejected:** UMLS/RxNorm normalisation, embedding-based concept
+resolution, or LLM mapping.
+**Why:** the matcher's value comes from *predictability*. A reviewer
+should be able to read `concept_lookup.py` in 30 seconds and see
+exactly which surface forms the matcher recognises. Any unmapped
+surface form lands as `indeterminate (unmapped_concept)`, which is
+the *honest* signal — it tells the eval harness exactly where the
+matcher's vocabulary needs to grow. Phase 2+ will extend this; v0
+intentionally trades recall for traceability. The medication table
+is empty in v0 because we haven't done the RxNorm work and would
+rather under-promise than fuzzy-match `"metformin"` against an
+arbitrary RxNorm code.
+
+### D-35. Polarity / negation as XOR flip applied after dispatch
+**Rejected:** baking polarity into each per-kind handler.
+**Why:** the polarity and negation rules are uniform across all
+criterion kinds, so the per-kind handlers compute the *raw* answer
+to the criterion's predicate ("does the patient have T2DM?") and
+the dispatcher applies a single XOR flip. Eight cases collapse to
+one truth table that gets unit-tested exhaustively. `indeterminate`
+verdicts are invariant under both flips — no amount of polarity can
+turn "we don't know" into a decision.
+
+### D-36. Typed `Evidence` discriminated union, with `MissingEvidence`
+**Rejected:** an opaque `dict[str, Any]` evidence blob, or
+omitting evidence entirely on `fail` verdicts.
+**Why:** every verdict — including `fail` and `indeterminate` — must
+cite the records the matcher actually consulted. A `MissingEvidence`
+row that says "no HbA1c lab on or before 2025-01-01" makes a
+`no_data` indeterminate verdict legible in a way that an empty
+evidence list never could. Typed `Evidence` (`LabEvidence`,
+`ConditionEvidence`, `MedicationEvidence`, `DemographicsEvidence`,
+`TrialFieldEvidence`, `MissingEvidence`) lets the reviewer UI render
+each row appropriately and lets the eval harness count by evidence
+kind without parsing strings.
+
+### D-37. Hypothetical mood and `within_future` short-circuit to indeterminate
+**Rejected:** treating planned events as if they had occurred, or
+inferring them from "intent to" language.
+**Why:** v0 has no patient-side data on planned events (Synthea
+doesn't generate planned-event records, and we have no source that
+does). Quietly returning `fail` on "planned bariatric surgery"
+would be wrong; quietly returning `pass` would be worse. The
+`unsupported_mood` indeterminate is the matcher saying "the data
+exists somewhere — just not on this profile" and the eval harness
+will show whether this affects enough criteria to be worth a Phase 2
+fix.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

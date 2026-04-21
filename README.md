@@ -5,8 +5,9 @@ AI Forward Deployed Engineer interview.
 
 > **Status: Phase 1 in progress.** Curated data products are in place
 > (trials, cohort, Chia corpus, eval seed set, patient profile
-> primitives). LLM criterion extractor v0 is built and unit-tested;
-> deterministic matcher and end-to-end glue are next.
+> primitives). LLM criterion extractor v0 and deterministic matcher v0
+> are built and unit-tested (238 tests passing). Next up: the
+> end-to-end glue script and Langfuse wiring.
 
 ## What it is (one paragraph)
 
@@ -132,6 +133,34 @@ for c in result.extracted.criteria:
     print(c.kind, c.polarity, c.source_text)
 print(f"prompt={result.meta.prompt_version} cost=${result.meta.cost_usd:.4f}")
 ```
+
+Run the deterministic matcher (no LLM, no network) over an extraction
++ a `PatientProfile`:
+
+```python
+from datetime import date
+
+from clinical_demo.matcher import match_extracted
+from clinical_demo.profile import PatientProfile
+
+profile = PatientProfile(patient, as_of=date(2025, 1, 1))
+verdicts = match_extracted(result.extracted.criteria, profile, trial)
+
+for v in verdicts:
+    print(v.verdict, v.reason, v.criterion.source_text)
+    for ev in v.evidence:
+        print(" ", ev.kind, ev.note)
+```
+
+Each `MatchVerdict` carries a closed `reason` enum (`ok`, `no_data`,
+`stale_data`, `unit_mismatch`, `unmapped_concept`, `unsupported_kind`,
+`unsupported_mood`, `human_review_required`, `ambiguous_criterion`),
+a one-line `rationale` for the reviewer UI, and a typed `Evidence`
+list (`LabEvidence`, `ConditionEvidence`, `MedicationEvidence`,
+`DemographicsEvidence`, `TrialFieldEvidence`, `MissingEvidence`).
+Polarity and negation are applied as a single XOR flip after
+dispatch, so each per-kind matcher answers the criterion's *raw*
+predicate; `indeterminate` verdicts pass through unchanged.
 
 ## License
 
