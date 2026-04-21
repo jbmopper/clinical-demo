@@ -50,6 +50,45 @@ from ..profile import PatientProfile
 from ..scoring.score_pair import EligibilityRollup, ScoringSummary
 
 
+def merge_indexed_verdicts(
+    left: list[tuple[int, MatchVerdict]],
+    right: list[tuple[int, MatchVerdict]],
+) -> list[tuple[int, MatchVerdict]]:
+    """Reducer: merge `(index, verdict)` tuples with replace-by-index.
+
+    Why not just `operator.add`?
+    --------------------------
+    The first matcher fan-out emits one tuple per criterion; concat
+    is the right semantics there (no index appears twice). But the
+    critic loop's revise node re-runs the matcher for *one*
+    criterion to fix a finding, which means we want the new tuple
+    for that index to *supersede* the old one, not sit beside it.
+    Plain concat would leave both, and the rollup's `sorted()` call
+    would arbitrarily pick whichever stable-sort happened to land
+    last — fine on a deterministic sort within one process, but
+    fragile (any change to the rollup's sort key would silently
+    flip which verdict wins).
+
+    Replace-by-index is also what an auditor would expect: the most
+    recent verdict for a given criterion is the verdict.
+
+    On a fresh run with no revisions, this collapses to the same
+    behaviour as concat (each index appears once on the right
+    side). The cost is O(n_left + n_right * n_left) for the
+    set-membership check, which is negligible at our criterion
+    counts (typically < 50 per trial).
+    """
+    if not right:
+        return left
+    if not left:
+        return list(right)
+
+    right_indices = {idx for idx, _ in right}
+    merged: list[tuple[int, MatchVerdict]] = [pair for pair in left if pair[0] not in right_indices]
+    merged.extend(right)
+    return merged
+
+
 class ScoringStateInput(TypedDict):
     """The minimum a caller must put on the channel to start the graph."""
 
@@ -80,14 +119,15 @@ class ScoringState(TypedDict, total=False):
 
     # The fan-in slot. Each match branch (deterministic or LLM)
     # emits `{"indexed_verdicts": [(criterion_index, verdict)]}` and
-    # `operator.add` concatenates across branches. The rollup node
-    # sorts on criterion_index to restore extraction order, then
-    # strips the indices when constructing the final verdict list.
-    # We carry the index explicitly because (a) `ExtractedCriterion`
-    # has no stable id, and (b) parallel execution doesn't preserve
-    # arrival order — we want a deterministic verdict ordering for
-    # eval / replay.
-    indexed_verdicts: Annotated[list[tuple[int, MatchVerdict]], operator.add]
+    # `merge_indexed_verdicts` collapses concurrent updates with
+    # replace-by-index semantics (last write per index wins). The
+    # rollup node sorts on criterion_index to restore extraction
+    # order, then strips the indices when constructing the final
+    # verdict list. We carry the index explicitly because (a)
+    # `ExtractedCriterion` has no stable id, and (b) parallel
+    # execution doesn't preserve arrival order — we want a
+    # deterministic verdict ordering for eval / replay.
+    indexed_verdicts: Annotated[list[tuple[int, MatchVerdict]], merge_indexed_verdicts]
 
     # Per-branch payload carried on the `Send` from `fan_out_criteria`
     # to a matcher node. These keys are only ever populated on the
@@ -106,8 +146,52 @@ class ScoringState(TypedDict, total=False):
     summary: ScoringSummary
     eligibility: EligibilityRollup
 
+    # ---- critic loop (Phase 2.2) ----
+    #
+    # Iteration counter, monotonically increasing. Initialized to 0
+    # by `score_pair_graph()`; the critic node bumps it before
+    # emitting findings. Used by the budget check in
+    # `route_after_critic` and surfaced in trace metadata so the
+    # dashboard can pivot on "average critic iterations per pair."
+    critic_iterations: int
+
+    # Findings emitted by the most recent critic pass. Replaced
+    # wholesale each iteration (not appended) — the critic operates
+    # on the current rollup, not the cumulative history. The
+    # historical record lives in trace spans, not in state.
+    #
+    # `None` means the critic has not run yet (distinct from `[]`
+    # which means "ran, found nothing, terminate"). The router
+    # checks for this distinction.
+    critic_findings: list[CriticFinding] | None
+
+    # Audit trail of revise actions taken across all iterations.
+    # Append-only (each iteration's revisions land here in addition
+    # to the new verdicts in `indexed_verdicts`), so an auditor can
+    # replay "what did the critic actually change."
+    critic_revisions: Annotated[list[CriticRevision], operator.add]
+
+    # Snapshot of the *previous* iteration's finding fingerprints,
+    # written by the critic node at the start of each pass. The
+    # post-critic router consults this to detect "no progress"
+    # (current fingerprints == previous fingerprints → terminate).
+    # Underscore prefix marks it as graph-internal plumbing. Kept
+    # off the public envelope; tests can poke at it directly when
+    # exercising the no-progress path.
+    _critic_prev_fingerprints: set[tuple[int, str]]
+
+
+# Forward-declared types (real definitions in nodes/critic.py to
+# keep state.py free of LLM-prompt churn). Imported lazily to break
+# the circular dep — these names are only ever read by type
+# checkers and as `list` element types at runtime, never instantiated
+# from this module.
+from .critic_types import CriticFinding, CriticRevision  # noqa: E402
 
 __all__ = [
+    "CriticFinding",
+    "CriticRevision",
     "ScoringState",
     "ScoringStateInput",
+    "merge_indexed_verdicts",
 ]

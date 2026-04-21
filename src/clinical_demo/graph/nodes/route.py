@@ -1,6 +1,6 @@
 """Routing for the scoring graph.
 
-Two distinct routing functions, played at two distinct seams:
+Routing functions, played at distinct seams:
 
 1. `fan_out_criteria` — a conditional edge from `extract` that
    returns either a list of `Send` objects (one per criterion) or
@@ -14,6 +14,10 @@ Two distinct routing functions, played at two distinct seams:
    ("if deterministic returns indeterminate(unmapped_concept), try
    LLM") plugs in here without touching the graph wiring.
 
+3. `route_after_critic` — Phase 2.2 conditional edge from the
+   critic node, deciding revise / loop / finalize based on the
+   findings list, the iteration budget, and a no-progress check.
+
 Routing rule v0
 ---------------
   - `kind == "free_text"`            → llm_match
@@ -21,8 +25,7 @@ Routing rule v0
 
 This is deliberately conservative: the deterministic matcher is
 fast, free, and exhaustively tested; we only call the LLM when the
-deterministic matcher *cannot* decide by construction. Phase 2.2
-will add the dynamic fallback.
+deterministic matcher *cannot* decide by construction.
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ from typing import Literal
 from langgraph.types import Send
 
 from ...extractor.schema import ExtractedCriterion
+from ..critic_types import CriticFinding
 from ..state import ScoringState
 
 MatchNodeName = Literal["deterministic_match", "llm_match"]
@@ -42,6 +46,10 @@ MatchNodeName = Literal["deterministic_match", "llm_match"]
 DETERMINISTIC_NODE: MatchNodeName = "deterministic_match"
 LLM_NODE: MatchNodeName = "llm_match"
 ROLLUP_NODE: Literal["rollup"] = "rollup"
+CRITIC_NODE: Literal["critic"] = "critic"
+REVISE_NODE: Literal["revise"] = "revise"
+FINALIZE_NODE: Literal["finalize"] = "finalize"
+HUMAN_REVIEW_NODE: Literal["human_review"] = "human_review"
 
 
 def route_by_kind(criterion: ExtractedCriterion) -> MatchNodeName:
@@ -99,3 +107,66 @@ def fan_out_criteria(state: ScoringState) -> list[Send] | str:
             )
         )
     return sends
+
+
+PostCriticTarget = Literal["revise", "rollup", "finalize"]
+
+
+def route_after_critic(
+    state: ScoringState,
+    *,
+    max_iterations: int,
+) -> PostCriticTarget:
+    """Decide what to do after the critic has emitted findings.
+
+    Three layered termination conditions, checked in cost order:
+
+      1. No actionable findings (severity != 'warning')
+         → `finalize` (we're done; the critic is happy or only
+         emitted info-level notes).
+
+      2. Iteration budget exhausted (`critic_iterations >=
+         max_iterations`)
+         → `finalize` (we already used our re-run budget; one
+         more critic pass would be a waste of an LLM call).
+
+      3. No-progress check: the current findings' fingerprint set
+         equals `_critic_prev_fingerprints` (which the critic node
+         snapshotted at entry). The critic is repeating itself;
+         the revise step isn't moving the needle.
+         → `finalize`.
+
+      4. Otherwise → `revise` (which then routes back to `rollup`
+         to re-aggregate, then back to the critic for another pass).
+
+    `recursion_limit` from the LangGraph config is the hard
+    backstop above all of this; the explicit budget is the
+    soft, observable one.
+    """
+    findings = state.get("critic_findings") or []
+    iteration = state.get("critic_iterations", 0)
+
+    actionable = [f for f in findings if f.severity == "warning"]
+    if not actionable:
+        return FINALIZE_NODE
+
+    if iteration >= max_iterations:
+        return FINALIZE_NODE
+
+    previous = state.get("_critic_prev_fingerprints")
+    if previous:
+        current = {(f.criterion_index, f.kind) for f in findings}
+        if current == previous:
+            return FINALIZE_NODE
+
+    return REVISE_NODE
+
+
+def fingerprint_findings(findings: list[CriticFinding]) -> set[tuple[int, str]]:
+    """Stable identity for the no-progress detector.
+
+    Pulled out so the graph builder and the tests share one
+    definition. Severity is intentionally excluded from the
+    fingerprint — promoting `info` to `warning` shouldn't reset
+    the no-progress counter."""
+    return {f.fingerprint for f in findings}
