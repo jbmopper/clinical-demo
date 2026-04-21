@@ -123,7 +123,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 1.7 | Patient Profiler v0: deterministic FHIR → typed Python objects with `as_of_date` slicing. *Done — `PatientProfile` wrapper, 5-state threshold primitives (meets/does_not_meet/no_data/stale_data/unit_mismatch), curated SNOMED+LOINC ConceptSets, eval seed labelers refactored to use the profile.* | 4 |
 | 1.8 | Criterion Extractor v0: single model, single prompt, JSON-schema output mirroring the Chia entity types. No retries, no router. *Done — OpenAI structured outputs (`gpt-4o-mini-2024-07-18` default), matcher-ready discriminated schema, 2 few-shot examples drawn from real eligibility text, prompt versioned at `extractor-v0.1`, smoke-script `extract_criteria.py`, 34 unit tests with stub client.* | 4 |
 | 1.9 | Deterministic matcher v0: covers numeric criteria, age, sex, active condition presence/absence. Returns `pass | fail | indeterminate`. *Done — `MatchVerdict` with typed `Evidence` rows, 8-kind dispatcher (age, sex, condition_present/absent, medication_present/absent, measurement_threshold, temporal_window, free_text), polarity/negation XOR truth-table, surface-form → ConceptSet lookup table for cardiometabolic conditions and labs, 79 unit tests (per-kind pass/fail/indeterminate + integration), matcher pinned at `matcher-v0.1`.* | 4 |
-| 1.10 | Glue script: `score_pair(patient, trial) -> List[CriterionVerdict]`, runs from the CLI. | 2 |
+| 1.10 | Glue script: `score_pair(patient, trial) -> List[CriterionVerdict]`, runs from the CLI. *Done — `clinical_demo.scoring.score_pair()` library entry returns a `ScorePairResult` (verdicts + extraction + summary + conservative `eligibility` rollup), `scripts/score_pair.py` CLI with `--no-llm` replay mode, `--force-extract`, `--json`, on-disk extraction cache shared with `extract_criteria.py`, 11 unit tests pinning the rollup truth table and the cache round-trip.* | 2 |
 | 1.11 | Wire Langfuse from day one — every LLM call traced; project name `clinical-demo`. | 2 |
 | **Phase 1 total** | | **~37 hr** |
 | **Exit criterion** | One CLI command takes one patient + one trial and prints per-criterion verdicts with citations. Ugly is fine. | |
@@ -723,6 +723,46 @@ would be wrong; quietly returning `pass` would be worse. The
 exists somewhere — just not on this profile" and the eval harness
 will show whether this affects enough criteria to be worth a Phase 2
 fix.
+
+### D-38. Conservative top-level rollup: any-fail → fail, else any-indeterminate → indeterminate
+**Rejected:** majority-vote, weighted scoring, "soft" rollups that
+ignore unmapped concepts.
+**Why:** at v0 the rollup is the single signal a non-clinician
+consumer of the system reads first. Clinical screening reality is
+also conservative: one missed exclusion is disqualifying. The rule
+("any `fail` wins; else any `indeterminate` wins; else `pass`") is
+trivially auditable, matches what the reviewer would do manually,
+and is exactly the surface a Phase-2 critic loop will refine —
+e.g. "override an `unmapped_concept` indeterminate when a textual
+match is present" or "weight inclusion failures against exclusion
+failures." Empty verdict lists collapse to `pass` (vacuously true);
+callers must check `summary.total_criteria == 0` themselves before
+trusting that as positive evidence — documented and tested.
+
+### D-39. ScorePairResult is a single envelope, not a tuple
+**Rejected:** returning `(verdicts, summary, eligibility, meta)`
+tuples or expecting callers to bundle their own.
+**Why:** every consumer wants the verdicts plus the run metadata —
+the CLI needs cost to print, the eval harness needs prompt+matcher
+versions to attribute regressions, the reviewer UI needs the
+patient/trial/as_of triple to render headers. Bundling them in one
+Pydantic model means each consumer picks what it needs without an
+ad-hoc tuple-unpacking contract that would have to change every
+time the envelope grew a new field. Persisting `ScorePairResult`
+to disk for evals is a free side-benefit.
+
+### D-40. On-disk extractor cache + `--no-llm` replay mode
+**Rejected:** re-extracting on every CLI invocation, or building
+an LRU memory cache that doesn't survive process restarts.
+**Why:** the extractor is the only LLM-cost surface in the pipeline
+and the demo loop is iterative — the developer/operator wants to
+re-render verdicts after touching the matcher, the lookup tables,
+or the rollup rules without paying tokens each time. The cache
+file is a `StoredExtraction` JSON keyed by NCT id, written by
+`extract_criteria.py` and read by `score_pair.py`. `--no-llm`
+makes the contract explicit: refuse to make a network call; fail
+loudly on cache miss. This also makes CI-grade end-to-end tests
+possible without an API key.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

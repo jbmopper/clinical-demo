@@ -3,11 +3,12 @@
 Clinical Trial Eligibility Co-Pilot — a portfolio demo built for a Generative
 AI Forward Deployed Engineer interview.
 
-> **Status: Phase 1 in progress.** Curated data products are in place
-> (trials, cohort, Chia corpus, eval seed set, patient profile
-> primitives). LLM criterion extractor v0 and deterministic matcher v0
-> are built and unit-tested (238 tests passing). Next up: the
-> end-to-end glue script and Langfuse wiring.
+> **Status: Phase 1 nearly done.** Curated data products are in
+> place (trials, cohort, Chia corpus, eval seed set, patient profile
+> primitives). LLM criterion extractor v0, deterministic matcher v0,
+> and the end-to-end `score_pair` glue (CLI + library) are built and
+> unit-tested (249 tests passing). Next up: Langfuse wiring from
+> day one.
 
 ## What it is (one paragraph)
 
@@ -161,6 +162,47 @@ list (`LabEvidence`, `ConditionEvidence`, `MedicationEvidence`,
 Polarity and negation are applied as a single XOR flip after
 dispatch, so each per-kind matcher answers the criterion's *raw*
 predicate; `indeterminate` verdicts pass through unchanged.
+
+Score one (patient, trial) pair end-to-end from the CLI:
+
+```bash
+# cheapest sane invocation: cached extraction, pretty output
+uv run python scripts/score_pair.py \
+    --patient-id 9ef4db86-c427-ddfe-a607-737f08ffb0c1 \
+    --nct-id NCT06000462
+
+# refuse to spend tokens; require a cached extraction (CI-friendly)
+uv run python scripts/score_pair.py \
+    --patient-id <id> --nct-id <nct> --no-llm
+
+# re-extract from scratch even if a cached envelope exists
+uv run python scripts/score_pair.py \
+    --patient-id <id> --nct-id <nct> --force-extract
+
+# machine-readable
+uv run python scripts/score_pair.py \
+    --patient-id <id> --nct-id <nct> --json > out.json
+```
+
+The script prints the conservative top-level eligibility rollup
+(`PASS`, `FAIL`, or indeterminate), the extraction's model / prompt
+version / cost / token count, verdict counts, and a per-criterion
+table with the source bullet, the matcher's `reason` and `rationale`,
+and the top two evidence rows (lab values, condition records,
+demographics) that drove the decision.
+
+Use the scoring library directly:
+
+```python
+from datetime import date
+
+from clinical_demo.scoring import score_pair
+
+result = score_pair(patient, trial, as_of=date(2025, 1, 1))
+print(result.eligibility, result.summary.by_verdict)
+for v in result.verdicts:
+    print(v.verdict, v.reason, v.criterion.source_text)
+```
 
 ## License
 
