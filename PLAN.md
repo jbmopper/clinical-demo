@@ -19,25 +19,37 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** Task 2.8 (Reviewer UI v0) — SvelteKit
+- **Last completed:** Reliability fix surfaced by first
+  end-to-end demo run: extractor was 500ing on big trials
+  (NCT05268237: 6.3k input tokens, output overflowed the
+  4096 token cap as `LengthFinishReasonError`). Promoted the
+  three LLM-call output caps into `Settings`
+  (`extractor_max_output_tokens` 4096→16384,
+  new `llm_matcher_max_output_tokens=1024`,
+  new `critic_max_output_tokens=2048`); wired matcher + critic
+  to read from settings instead of magic numbers; converted
+  length-truncation in the extractor from a 500 into a
+  graceful empty-extraction with `metadata.notes` and
+  preserved cost on `ExtractorRunMeta` (we paid for those
+  tokens; eval rollups must not undercount). New regression
+  test pins the contract. Decision **D-65**.
+  Previous: Task 2.8 (Reviewer UI v0) — SvelteKit
   single-page dev rig under `web/` calling the local FastAPI:
   patient + trial pickers, per-criterion verdict pills,
   click-to-expand evidence, orchestrator/critic toggles. Same
   request schema and `ScorePairResult` envelope as the CLI.
-  Per D-69 this lives here as a **dev rig only** — the
+  Per D-64 this lives here as a **dev rig only** — the
   production reviewer surface ports into `juliusm.com`.
-  Previous: Task 2.9 (FastAPI backend) — commit
-  `087d6a2` (`feat(api): FastAPI backend over score_pair…`).
 - **Next:** Loop back to PLAN tasks 2.5 (layer-2 Chia F1),
   2.6 (layer-3 LLM judge), 2.7 (first baseline regression
   run). Then 3.x reliability + cost work and the
   `juliusm.com` deploy.
 - **Gates at HEAD:** `mypy` clean (99 src files); `ruff check` +
-  `ruff format` clean (111 files); `pytest` 385 passing, 1
+  `ruff format` clean (111 files); `pytest` 386 passing, 1
   pre-existing failure (see follow-ups). The reviewer UI is a
   thin presentation layer over the API and is exercised
   manually; no JS test runner in this repo on purpose
-  (per D-69 it's not the production artifact).
+  (per D-64 it's not the production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
 ### Non-trivial open follow-ups
@@ -1232,6 +1244,68 @@ production owner — `juliusm.com` — will own. The dev rig's
 job is to exercise the FastAPI through a real UI so that any
 contract drift between `ScorePairResult` and the renderer
 shows up here, not in the personal site's deploy.
+
+### D-65. Promote LLM token caps into Settings; convert extractor length-truncation from a 500 to a graceful empty extraction
+**Picked:** three changes, taken together, in response to the
+first end-to-end demo run hitting `LengthFinishReasonError`
+on the largest curated trial (NCT05268237; 6.3k input tokens,
+4096 output overflow):
+
+1. Promote `extractor_max_output_tokens` (4096), the
+   previously hard-coded `llm_match` cap (512), and the
+   `critic` cap (1024) into `Settings`; bump the extractor
+   to 16384 (the model's hard ceiling for `gpt-4o-mini`),
+   the matcher to 1024, the critic to 2048. Cost is
+   unaffected by raising caps because providers only bill
+   for tokens *emitted*; the cap is a budget, not a quota.
+2. Wire `nodes/llm_match.py` and `nodes/critic.py` to read
+   from `Settings` instead of inline literals. Magic numbers
+   in source were a config-drift bug waiting to happen
+   (e.g. critic prompt asks for ~30 findings → 1024 tokens
+   easily overflowed once revisions stacked).
+3. In `extract_criteria`, catch `openai.LengthFinishReasonError`
+   specifically (before the catch-all `except`) and return an
+   `ExtractionResult` with `criteria=[]`, a
+   `metadata.notes` flag describing the truncation, and full
+   cost/token preservation on `ExtractorRunMeta` (we paid
+   for those tokens; eval rollups must not undercount). The
+   Langfuse span is tagged `WARNING`, not `ERROR`, so
+   dashboards can split graceful degradation from genuine
+   failures. Downstream rollup collapses an empty criteria
+   list to a vacuous `pass` — acceptable v0 behavior.
+
+**Rejected (a):** "just bump the extractor cap, leave matcher
+and critic alone." Lazy: the same overflow mode exists for
+both other call sites and would have surfaced the moment a
+big trial actually triggered the critic loop on the demo. Fix
+all three call sites once.
+
+**Rejected (b):** raise `LengthFinishReasonError` as a typed
+`ExtractorTruncatedError` and let the orchestrator decide. v0
+has one orchestrator pair (imperative + graph) and the right
+behavior in both is "log + skip + keep going." Adding a typed
+exception would force every caller (CLI, eval harness, API,
+both orchestrators) to handle it identically — that's the
+extractor's job.
+
+**Rejected (c):** retry with a doubled cap. `gpt-4o-mini`'s
+hard ceiling is 16384; once that's the cap, retry has nothing
+to give. The right Phase 3 follow-up is splitting extraction
+across criterion sections (inclusion / exclusion) so each
+sub-call has half the prompt and half the expected output.
+
+**Why:** the failure was real, the user-visible message was
+a stack trace, and the production-discipline lesson is that
+LLM stacks have *known* failure modes (length truncation,
+refusals, tool-call malformation, content filters) that
+production code should degrade across, not bubble up to the
+user. The fix here is the same shape as the existing
+`ExtractorRefusalError` / `ExtractorMissingParsedError`
+handling — explicit per-mode treatment, span-tagged so the
+operator can tell which mode fired, regression-tested so the
+contract is pinned. This is the FDE-relevant story: "robust
+to provider failure modes" is exactly what a deployed system
+needs and exactly what unit tests can pin without a live API.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

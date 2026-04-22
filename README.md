@@ -23,7 +23,13 @@ AI Forward Deployed Engineer interview.
 > as a SvelteKit dev rig under `web/` — single-page, picks a
 > patient + trial, dispatches `POST /score`, and renders the
 > per-criterion verdicts as colored pills with click-to-expand
-> evidence. **385 tests passing** (Python; the UI is a thin
+> evidence. First end-to-end demo run surfaced a length-overflow
+> on the largest curated trial; D-65 promotes the LLM-call token
+> caps into `Settings`, raises the extractor cap from 4096 to the
+> model's 16384 ceiling, and converts
+> `openai.LengthFinishReasonError` from a 500 into a graceful
+> empty extraction with cost preserved.
+> **386 tests passing** (Python; the UI is a thin
 > presentation layer over the API and is exercised manually).
 > Up next: the remaining eval layers and a baseline regression
 > run; the UI gets ported into `juliusm.com` for the
