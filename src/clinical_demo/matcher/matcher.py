@@ -84,6 +84,14 @@ def match_criterion(
     evidence)` — the *raw* answer to the criterion's claim, unflipped
     by polarity. `match_criterion` then applies polarity / negation
     to land on the final eligibility verdict.
+
+    Soft-fails on extractor invariant violations (kind discriminator
+    says one thing, payload slot is None) by emitting an
+    `indeterminate(extractor_invariant_violation)` verdict instead of
+    bubbling up — see `_ExtractorInvariantViolation` and D-66. This
+    keeps a single bad criterion from taking down a 30-criterion
+    trial's score; the bad criterion stays visible in the verdict
+    list so reviewers can see exactly which one the extractor fumbled.
     """
     if criterion.mood == "hypothetical":
         return _build(
@@ -97,7 +105,21 @@ def match_criterion(
             evidence=[],
         )
 
-    raw, reason, rationale, evidence = _dispatch(criterion, profile, trial)
+    try:
+        raw, reason, rationale, evidence = _dispatch(criterion, profile, trial)
+    except _ExtractorInvariantViolation as exc:
+        return _build(
+            criterion,
+            verdict="indeterminate",
+            reason="extractor_invariant_violation",
+            rationale=str(exc),
+            evidence=[
+                MissingEvidence(
+                    looked_for=f"non-null {exc.slot_name!r} payload (kind={criterion.kind!r})",
+                    note="extractor returned a discriminator/payload mismatch",
+                )
+            ],
+        )
     final = _apply_polarity(raw, criterion.polarity, criterion.negated)
     return _build(
         criterion,
@@ -130,18 +152,18 @@ def _dispatch(
     kind: CriterionKind = criterion.kind
 
     if kind == "age":
-        return _match_age(_required(criterion.age, "age"), profile, trial)
+        return _match_age(_required(criterion.age, "age", kind), profile, trial)
     if kind == "sex":
-        return _match_sex(_required(criterion.sex, "sex"), profile, trial)
+        return _match_sex(_required(criterion.sex, "sex", kind), profile, trial)
     if kind in ("condition_present", "condition_absent"):
-        return _match_condition(_required(criterion.condition, "condition"), profile)
+        return _match_condition(_required(criterion.condition, "condition", kind), profile)
     if kind in ("medication_present", "medication_absent"):
-        return _match_medication(_required(criterion.medication, "medication"), profile)
+        return _match_medication(_required(criterion.medication, "medication", kind), profile)
     if kind == "measurement_threshold":
-        return _match_measurement(_required(criterion.measurement, "measurement"), profile)
+        return _match_measurement(_required(criterion.measurement, "measurement", kind), profile)
     if kind == "temporal_window":
         return _match_temporal_window(
-            _required(criterion.temporal_window, "temporal_window"), profile
+            _required(criterion.temporal_window, "temporal_window", kind), profile
         )
     if kind == "free_text":
         return (
@@ -159,19 +181,44 @@ def _dispatch(
     )
 
 
-def _required(payload: Any, slot_name: str) -> Any:
+class _ExtractorInvariantViolation(Exception):
+    """Raised when an `ExtractedCriterion`'s `kind` discriminator says
+    one payload slot should be populated, but that slot is None.
+
+    OpenAI structured outputs enforce field-level shape but cannot
+    enforce cross-field invariants like "if `kind` == 'measurement_threshold'
+    then `measurement` is non-null." So a model that ignores the
+    instruction can produce schema-valid but semantically broken JSON.
+    We raise this from `_required(...)` and `match_criterion` catches
+    it to emit a soft-fail `indeterminate(extractor_invariant_violation)`
+    verdict (D-66) — keeping one bad criterion from killing the trial's
+    whole score while staying visible in the verdict list so a reviewer
+    sees which specific row the extractor fumbled.
+
+    Carries `slot_name` so the catch site can build a precise
+    MissingEvidence row without re-parsing the message string.
+    """
+
+    def __init__(self, slot_name: str, kind: str) -> None:
+        super().__init__(
+            f"ExtractedCriterion claimed kind={kind!r} which requires "
+            f"a non-null `{slot_name}` payload, but `{slot_name}` was None."
+        )
+        self.slot_name = slot_name
+        self.kind = kind
+
+
+def _required(payload: Any, slot_name: str, kind: str) -> Any:
     """Defensive payload accessor.
 
-    The extractor schema's `kind` discriminator guarantees the
-    matching payload slot is non-null in well-formed output, but
-    callers can hand-build `ExtractedCriterion`s in tests, and
-    upstream bugs could ship a None into prod. Failing loudly with a
-    typed error beats a `NoneType has no attribute` traceback."""
+    The extractor schema's `kind` discriminator should guarantee the
+    matching payload slot is non-null in well-formed output, but the
+    model can ignore that contract. Hand-built test fixtures can also
+    miss it. Raising the typed `_ExtractorInvariantViolation` lets
+    `match_criterion` convert this into a per-criterion soft fail
+    rather than a 500."""
     if payload is None:
-        raise ValueError(
-            f"ExtractedCriterion claimed a kind requiring `{slot_name}` but the "
-            f"`{slot_name}` payload is None."
-        )
+        raise _ExtractorInvariantViolation(slot_name=slot_name, kind=kind)
     return payload
 
 

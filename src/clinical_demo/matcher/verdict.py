@@ -55,6 +55,7 @@ VerdictReason = Literal[
     "unsupported_mood",
     "human_review_required",
     "ambiguous_criterion",
+    "extractor_invariant_violation",
 ]
 """Closed enum for *why* the matcher returned the verdict it did.
 

@@ -20,6 +20,7 @@ from clinical_demo.scoring import (
     StoredExtraction,
     cache_path_for,
     load_cached_extraction,
+    schema_fingerprint,
 )
 
 
@@ -60,8 +61,70 @@ def test_cache_round_trip(tmp_path: Path) -> None:
     assert result.meta.cost_usd == 0.0001
 
 
-def test_cache_path_for_uses_nct_id_filename(tmp_path: Path) -> None:
-    """Path convention is `<root>/<NCT_ID>.json`. Pinning it here so
-    a path-format change doesn't silently invalidate the cache."""
+def test_cache_path_embeds_prompt_schema_and_model(tmp_path: Path) -> None:
+    """Filename pattern is `<NCT>.<prompt_version>.<schema_fp>.<model>.json`.
+
+    Pinning the four-segment shape here because (a) any of the three
+    rev-able signals changing must produce a different filename for
+    cache invalidation to work (D-66), and (b) downstream tooling that
+    inspects filenames depends on the segment order. If you intend to
+    change the format, also change the doc on `cache_path_for` and
+    delete or migrate `data/curated/extractions/*.json` so old
+    envelopes don't stick around as orphans.
+    """
+    p = cache_path_for(
+        "NCT99999999",
+        tmp_path,
+        prompt_version="prompt-vX",
+        schema_fp="abcd1234",
+        model="gpt-test",
+    )
+    assert p == tmp_path / "NCT99999999.prompt-vX.abcd1234.gpt-test.json"
+
+
+def test_cache_path_defaults_pull_current_signals(tmp_path: Path) -> None:
+    """No-arg defaults: prompt_version from `extractor.prompt`, schema
+    fingerprint from the live schema, model from settings. So callers
+    that don't override anything always get the *current* cache key,
+    automatically invalidating when any of the three changes."""
+    from clinical_demo.extractor.prompt import PROMPT_VERSION
+    from clinical_demo.settings import get_settings
+
     p = cache_path_for("NCT99999999", tmp_path)
-    assert p == tmp_path / "NCT99999999.json"
+    expected = (
+        tmp_path / f"NCT99999999.{PROMPT_VERSION}.{schema_fingerprint()}."
+        f"{get_settings().extractor_model}.json"
+    )
+    assert p == expected
+
+
+def test_schema_fingerprint_is_stable_and_short() -> None:
+    """8 hex chars, deterministic. The cache filename and the
+    StoredExtraction reader both depend on this; tests upstream/downstream
+    have an implicit dependency on the digest staying the same per
+    schema rev. Bumping it should be the only effect of a schema edit."""
+    fp = schema_fingerprint()
+    assert len(fp) == 8
+    assert fp == schema_fingerprint()
+    int(fp, 16)
+
+
+def test_schema_fingerprint_changes_when_schema_changes() -> None:
+    """Inject a probe model with a different schema and confirm the
+    fingerprint differs. Doesn't mutate the real schema (we use a
+    sibling model and hash directly), but pins the contract that a
+    schema rev produces a different digest."""
+    import hashlib
+    import json
+
+    from pydantic import BaseModel
+
+    class _Probe(BaseModel):
+        x: int
+
+    probe_schema = _Probe.model_json_schema()
+    probe_canonical = json.dumps(probe_schema, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    probe_fp = hashlib.sha256(probe_canonical).hexdigest()[:8]
+    assert probe_fp != schema_fingerprint()

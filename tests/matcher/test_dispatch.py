@@ -118,27 +118,68 @@ def test_evidence_is_attached_for_pass_and_fail() -> None:
     assert fail_v.evidence
 
 
-def test_required_payload_invariant_raises_on_corrupted_input() -> None:
-    """If a caller hand-builds an `ExtractedCriterion` whose `kind`
-    promises one payload but the slot is None, `_required` should
-    raise a typed `ValueError` rather than letting `AttributeError`
-    leak from the per-kind handler."""
+def test_extractor_invariant_violation_soft_fails_to_indeterminate() -> None:
+    """When the extractor returns a kind/payload mismatch (kind says
+    one slot should be populated, payload is None), the matcher
+    soft-fails the criterion to `indeterminate(extractor_invariant_violation)`
+    rather than raising. This is what makes a 30-criterion trial
+    survive when the model flubs one row — the bad row stays visible
+    in the verdict list with a MissingEvidence trail so reviewers can
+    see exactly which criterion the extractor fumbled (D-66).
+
+    Was the previous behavior (a `ValueError` bubbling up to the API
+    as a 500). Trace from NCT05268237 → measurement_threshold +
+    measurement=None caused exactly this."""
     from clinical_demo.extractor.schema import ExtractedCriterion
 
     bad = ExtractedCriterion(
-        kind="age",
+        kind="measurement_threshold",
         polarity="inclusion",
-        source_text="",
+        source_text="HbA1c >= 7.0%",
         negated=False,
         mood="actual",
-        age=None,  # missing on purpose
+        age=None,
         sex=None,
         condition=None,
+        medication=None,
+        measurement=None,  # missing on purpose; the bug
+        temporal_window=None,
+        free_text=None,
+        mentions=[],
+    )
+    v = match_criterion(bad, make_profile(), make_trial())
+    assert v.verdict == "indeterminate"
+    assert v.reason == "extractor_invariant_violation"
+    assert "measurement_threshold" in v.rationale
+    assert "measurement" in v.rationale
+    assert v.evidence and v.evidence[0].kind == "missing"
+
+
+def test_extractor_invariant_violation_isolates_to_one_criterion() -> None:
+    """One bad criterion in a batch must not contaminate the others.
+    The whole point of soft-failing per-criterion is that
+    `match_extracted` over [valid, bad, valid] yields three verdicts:
+    two real, one soft-failed."""
+    from clinical_demo.extractor.schema import ExtractedCriterion
+
+    profile = make_profile(birth=date(1990, 1, 1))
+    bad = ExtractedCriterion(
+        kind="condition_present",
+        polarity="inclusion",
+        source_text="History of MI",
+        negated=False,
+        mood="actual",
+        age=None,
+        sex=None,
+        condition=None,  # missing on purpose
         medication=None,
         measurement=None,
         temporal_window=None,
         free_text=None,
         mentions=[],
     )
-    with pytest.raises(ValueError, match="`age` payload is None"):
-        match_criterion(bad, make_profile(), make_trial())
+    crits = [crit_age(minimum_years=18.0), bad, crit_free_text()]
+    verdicts = match_extracted(crits, profile, make_trial())
+    assert [v.verdict for v in verdicts] == ["pass", "indeterminate", "indeterminate"]
+    assert verdicts[1].reason == "extractor_invariant_violation"
+    assert verdicts[2].reason == "human_review_required"

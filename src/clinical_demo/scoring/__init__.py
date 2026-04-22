@@ -4,7 +4,12 @@ Importable wrapper around the extractor + matcher + profile that the
 CLI script and any future API surface both call.
 """
 
-from .cache import StoredExtraction, cache_path_for, load_cached_extraction
+from .cache import (
+    StoredExtraction,
+    cache_path_for,
+    load_cached_extraction,
+    schema_fingerprint,
+)
 from .score_pair import (
     EligibilityRollup,
     ScorePairResult,
@@ -19,5 +24,6 @@ __all__ = [
     "StoredExtraction",
     "cache_path_for",
     "load_cached_extraction",
+    "schema_fingerprint",
     "score_pair",
 ]

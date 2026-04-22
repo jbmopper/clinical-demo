@@ -35,7 +35,7 @@ from clinical_demo.extractor import (
     build_messages,
     extract_criteria,
 )
-from clinical_demo.scoring import StoredExtraction
+from clinical_demo.scoring import StoredExtraction, cache_path_for
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,11 @@ def _select_trials(limit: int) -> list[str]:
 
 
 def _output_path(nct_id: str) -> Path:
-    return EXTRACTIONS_DIR / f"{nct_id}.json"
+    """Resolve the cache filename via the canonical helper so writer
+    and reader stay aligned (D-66). The filename embeds prompt
+    version + schema fingerprint + model so a change to any of the
+    three makes prior outputs invisible to the read path."""
+    return cache_path_for(nct_id, EXTRACTIONS_DIR)
 
 
 def _run_one(nct_id: str) -> StoredExtraction:
