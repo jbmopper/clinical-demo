@@ -28,8 +28,17 @@ AI Forward Deployed Engineer interview.
 > caps into `Settings`, raises the extractor cap from 4096 to the
 > model's 16384 ceiling, and converts
 > `openai.LengthFinishReasonError` from a 500 into a graceful
-> empty extraction with cost preserved.
-> **386 tests passing** (Python; the UI is a thin
+> empty extraction with cost preserved. Second run surfaced a
+> stale-cache hit re-pumping a malformed criterion through the
+> matcher; D-66 makes that fail soft (matcher emits
+> `indeterminate(extractor_invariant_violation)` per-criterion
+> instead of crashing the trial) and revs the cache filename to
+> embed the prompt version, an 8-char schema fingerprint, and the
+> extractor model — so any of those three changing automatically
+> invalidates stale envelopes (the schema fingerprint hashes the
+> live `ExtractedCriteria.model_json_schema()`, so adding a field
+> invalidates for free).
+> **391 tests passing** (Python; the UI is a thin
 > presentation layer over the API and is exercised manually).
 > Up next: the remaining eval layers and a baseline regression
 > run; the UI gets ported into `juliusm.com` for the

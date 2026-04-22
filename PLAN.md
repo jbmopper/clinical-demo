@@ -19,34 +19,39 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** Reliability fix surfaced by first
-  end-to-end demo run: extractor was 500ing on big trials
-  (NCT05268237: 6.3k input tokens, output overflowed the
-  4096 token cap as `LengthFinishReasonError`). Promoted the
-  three LLM-call output caps into `Settings`
-  (`extractor_max_output_tokens` 4096→16384,
-  new `llm_matcher_max_output_tokens=1024`,
-  new `critic_max_output_tokens=2048`); wired matcher + critic
-  to read from settings instead of magic numbers; converted
-  length-truncation in the extractor from a 500 into a
-  graceful empty-extraction with `metadata.notes` and
-  preserved cost on `ExtractorRunMeta` (we paid for those
-  tokens; eval rollups must not undercount). New regression
-  test pins the contract. Decision **D-65**.
-  Previous: Task 2.8 (Reviewer UI v0) — SvelteKit
-  single-page dev rig under `web/` calling the local FastAPI:
-  patient + trial pickers, per-criterion verdict pills,
-  click-to-expand evidence, orchestrator/critic toggles. Same
-  request schema and `ScorePairResult` envelope as the CLI.
-  Per D-64 this lives here as a **dev rig only** — the
-  production reviewer surface ports into `juliusm.com`.
+- **Last completed:** Second reliability fix surfaced by the
+  next end-to-end demo run after D-65 landed: matcher was 500ing
+  on stale cached extractions whose `kind` discriminator
+  promised a payload slot the model had returned as `None`
+  (`ValueError: ExtractedCriterion claimed a kind requiring
+  \`measurement\` but the \`measurement\` payload is None.`,
+  reliably on NCT05268237 for both orchestrators). Two
+  complementary changes: (1) matcher now soft-fails to
+  `MatchVerdict(verdict="indeterminate",
+  reason="extractor_invariant_violation")` with a
+  `MissingEvidence` audit row instead of raising — one bad
+  criterion no longer kills a 30-criterion trial's score; the
+  bad row stays visible so a reviewer sees exactly which
+  criterion the extractor fumbled. (2) Cache filename now
+  embeds prompt version + 8-char schema fingerprint + model
+  (e.g. `NCT05268237.extractor-v0.1.1977cd68.gpt-4o-mini-2024-07-18.json`);
+  the schema fingerprint hashes the canonical JSON of
+  `ExtractedCriteria.model_json_schema()`, so any field
+  add/rename/retype on the extractor schema *automatically*
+  produces a new filename and the old envelope becomes
+  invisible to the read path. Closes the loop: future schema
+  revs cannot perpetuate stale-output bugs through cache
+  reuse. Decision **D-66**.
+  Previous: D-65 — promote LLM token caps into Settings,
+  graceful length-truncation handling. Phase 2.8 — SvelteKit
+  reviewer UI dev rig under `web/`, per D-64.
 - **Next:** Loop back to PLAN tasks 2.5 (layer-2 Chia F1),
   2.6 (layer-3 LLM judge), 2.7 (first baseline regression
   run). Then 3.x reliability + cost work and the
   `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (99 src files); `ruff check` +
-  `ruff format` clean (111 files); `pytest` 386 passing, 1
-  pre-existing failure (see follow-ups). The reviewer UI is a
+- **Gates at HEAD:** `mypy` clean (107 src files); `ruff check` +
+  `ruff format` clean; `pytest` 391 passing, 1 pre-existing
+  failure (see follow-ups). The reviewer UI is a
   thin presentation layer over the API and is exercised
   manually; no JS test runner in this repo on purpose
   (per D-64 it's not the production artifact).
@@ -1306,6 +1311,75 @@ operator can tell which mode fired, regression-tested so the
 contract is pinned. This is the FDE-relevant story: "robust
 to provider failure modes" is exactly what a deployed system
 needs and exactly what unit tests can pin without a live API.
+
+### D-66. Per-criterion soft-fail on extractor invariant violations + auto-invalidating cache key
+**Picked:** two changes, taken together, in response to the
+second end-to-end demo run hitting `ValueError: ExtractedCriterion
+claimed a kind requiring \`measurement\` but the \`measurement\`
+payload is None.` on NCT05268237 — for *both* orchestrators, off
+the same stale cache file written before D-65's prompt/cap fixes
+landed.
+
+1. **Matcher soft-fail.** `_required(...)` now raises a typed
+   `_ExtractorInvariantViolation` (sentinel exception, scoped to
+   the matcher module). `match_criterion` catches it and emits
+   `MatchVerdict(verdict="indeterminate",
+   reason="extractor_invariant_violation")` with a `MissingEvidence`
+   row naming the offending payload slot. The reason joins the
+   existing `VerdictReason` enum, so the UI's pill renderer and
+   the eval rollup pick it up automatically. One bad criterion no
+   longer kills a 30-criterion trial's score; the bad row stays
+   visible in the verdict list with full audit trail so a reviewer
+   sees exactly which criterion the extractor fumbled.
+
+2. **Cache filename embeds (prompt_version, schema_fingerprint, model).**
+   `cache_path_for(...)` now returns
+   `<NCT>.<prompt_version>.<schema_fp>.<model>.json`. The schema
+   fingerprint is an 8-char SHA-256 of canonical-JSON
+   `ExtractedCriteria.model_json_schema()` — so any field
+   add/rename/retype on the extractor schema *automatically*
+   produces a new filename, making old envelopes invisible to the
+   read path. Three independently revvable signals → three filename
+   segments. Old envelopes become orphans in the same directory
+   (gitignored, harmless).
+
+**Rejected (a):** swallow the `ValueError` silently and skip the
+criterion. Loses the audit trail. The whole point of the matcher
+is to be *honest* about what it can't decide; "indeterminate +
+explicit reason" is the existing language for that.
+
+**Rejected (b):** raise a typed `ExtractorInvariantError` and
+make the API surface a 422. Same problem as the D-65 rejected
+typed-exception path: forces every caller to handle one exception
+type per failure mode. The matcher's job is exactly to smooth
+LLM-side noise into typed verdicts; turning a noise event into
+an `indeterminate` *is* its job.
+
+**Rejected (c):** manual prompt-version bump only, no schema
+fingerprint. Cheaper to write but easy to forget. A new field on
+`ExtractedCriterion` is a typed, IDE-supported change that should
+"just work"; humans should not be on the hook to remember to bump
+a string constant in a sibling module. Auto-invalidation is one
+hash and zero ongoing cost; the failure mode of *not* doing it
+is exactly what produced the NCT05268237 incident.
+
+**Rejected (d):** wipe `data/curated/extractions/` on schema
+change. Destructive, hides which keys were old, and slows
+diff-style comparison across schema revisions. Renaming via key
+preserves history at zero storage cost.
+
+**Why:** these are the two complementary halves of the same
+robustness story. (1) makes a single bad LLM output fail
+*soft*, not catastrophic — same shape as D-65's length-truncation
+fix but at the matcher layer instead of the extractor layer.
+(2) makes sure we never *re-encounter* the same bad output by
+reusing it from cache after the bug has been fixed upstream.
+Together they close the loop: even if a future schema rev
+exposes a new model misbehavior, the old cache won't perpetuate
+it, and the matcher won't crash the whole trial on it. FDE
+relevance: "auditable degradation paths" + "cache keys you can
+trust" are both prerequisites for a system you'd let a clinician
+look at unattended.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
