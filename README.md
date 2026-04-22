@@ -37,11 +37,26 @@ AI Forward Deployed Engineer interview.
 > extractor model — so any of those three changing automatically
 > invalidates stale envelopes (the schema fingerprint hashes the
 > live `ExtractedCriteria.model_json_schema()`, so adding a field
-> invalidates for free).
-> **391 tests passing** (Python; the UI is a thin
+> invalidates for free). Task 2.7 then landed the **first
+> baseline regression**: two cache-warm eval runs (imperative +
+> graph + critic) over all 49 pairs, snapshotted under
+> `eval/baselines/2026-04-21/` with `SUMMARY.md` (provenance,
+> per-field numbers, slice rollup) and `INDETERMINACY.md`
+> (per-criterion `(verdict, reason, kind)` diagnostic answering
+> "why so much indeterminacy"). Layer-1 numbers: 81% agreement /
+> 55% coverage, identical between orchestrators. Diagnostic
+> finding: 89% of indeterminates are `unmapped_concept`, with
+> conditions dominating over labs over medications — the
+> top-impact next investment is concept-vocabulary expansion
+> (~200-300 verdicts could move). Side fix: SQLite store schema
+> bumped v1→v2 with an additive `ALTER TABLE` migration (D-67)
+> so persisted runs carry their labels; was a silent
+> layer-1-empty-report bug. Decisions D-67, D-68.
+> **393 tests passing** (Python; the UI is a thin
 > presentation layer over the API and is exercised manually).
-> Up next: the remaining eval layers and a baseline regression
-> run; the UI gets ported into `juliusm.com` for the
+> Up next: layer-2 (Chia F1) + layer-3 (LLM-as-judge) eval
+> layers, and the concept-vocabulary expansion called out by
+> the diagnostic. The UI gets ported into `juliusm.com` for the
 > public-facing demo.
 
 ## What it is (one paragraph)

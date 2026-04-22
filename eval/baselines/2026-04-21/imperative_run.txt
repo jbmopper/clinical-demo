@@ -1,0 +1,16 @@
+
+Run b55783ff962f
+  notes: baseline-v2: imperative + cached extractions + persisted labels
+  dataset: data/curated/eval_seed.json
+  started: 2026-04-21T22:12:51  finished: 2026-04-21T22:13:04
+  cases: 49  errors: 0  total scoring latency: 13.6s
+  extraction cost (sum over 49 cases): $0.1022
+  eligibility: fail=17  indeterminate=32  pass=0
+  by slice:
+    ckd                      fail=2  indeterminate=5  pass=0
+    hyperlipidemia           fail=2  indeterminate=5  pass=0
+    hypertension-academic    fail=0  indeterminate=7  pass=0
+    hypertension-industry    fail=0  indeterminate=7  pass=0
+    nsclc                    fail=1  indeterminate=6  pass=0
+    t2dm-academic            fail=6  indeterminate=1  pass=0
+    t2dm-industry            fail=6  indeterminate=1  pass=0

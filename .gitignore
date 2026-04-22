@@ -22,6 +22,10 @@ data/raw/
 data/curated/
 data/cache/
 
-eval/
+eval/runs.sqlite
+eval/runs.sqlite-*
+# `eval/baselines/` is intentionally tracked — committed numbers are
+# the regression artifact for layer-1 (and later) eval runs (see
+# PLAN task 2.7 / decision D-68).
 
 __marimo__/

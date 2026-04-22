@@ -19,39 +19,45 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** Second reliability fix surfaced by the
-  next end-to-end demo run after D-65 landed: matcher was 500ing
-  on stale cached extractions whose `kind` discriminator
-  promised a payload slot the model had returned as `None`
-  (`ValueError: ExtractedCriterion claimed a kind requiring
-  \`measurement\` but the \`measurement\` payload is None.`,
-  reliably on NCT05268237 for both orchestrators). Two
-  complementary changes: (1) matcher now soft-fails to
-  `MatchVerdict(verdict="indeterminate",
-  reason="extractor_invariant_violation")` with a
-  `MissingEvidence` audit row instead of raising — one bad
-  criterion no longer kills a 30-criterion trial's score; the
-  bad row stays visible so a reviewer sees exactly which
-  criterion the extractor fumbled. (2) Cache filename now
-  embeds prompt version + 8-char schema fingerprint + model
-  (e.g. `NCT05268237.extractor-v0.1.1977cd68.gpt-4o-mini-2024-07-18.json`);
-  the schema fingerprint hashes the canonical JSON of
-  `ExtractedCriteria.model_json_schema()`, so any field
-  add/rename/retype on the extractor schema *automatically*
-  produces a new filename and the old envelope becomes
-  invisible to the read path. Closes the loop: future schema
-  revs cannot perpetuate stale-output bugs through cache
-  reuse. Decision **D-66**.
-  Previous: D-65 — promote LLM token caps into Settings,
-  graceful length-truncation handling. Phase 2.8 — SvelteKit
-  reviewer UI dev rig under `web/`, per D-64.
-- **Next:** Loop back to PLAN tasks 2.5 (layer-2 Chia F1),
-  2.6 (layer-3 LLM judge), 2.7 (first baseline regression
-  run). Then 3.x reliability + cost work and the
-  `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (107 src files); `ruff check` +
-  `ruff format` clean; `pytest` 391 passing, 1 pre-existing
-  failure (see follow-ups). The reviewer UI is a
+- **Last completed:** First baseline regression run (PLAN task
+  2.7) plus an indeterminacy diagnostic answering "why is so
+  much of the result set `indeterminate`?" Fresh extraction over
+  all 30 curated trials under the D-66 cache scheme (570
+  criteria, $0.067, ~18 min wall) feeds two cache-warm eval
+  runs against the 49-pair seed: imperative
+  (`b55783ff962f`, ~14s scoring) and graph + critic
+  (`ae7ac16936b8`, ~5 min). Both runs persisted to
+  `eval/runs.sqlite`; layer-1 JSON reports + pretty run
+  summaries + `SUMMARY.md` + `INDETERMINACY.md` snapshotted to
+  `eval/baselines/2026-04-21/`. Headline numbers: layer-1
+  overall agreement 81.0%, coverage 55.3%, identical between
+  orchestrators (the critic acts on rollup, not per-criterion
+  structured dispatch — non-trivial finding worth the
+  side-by-side). All 8 layer-1 disagreements are
+  matcher-correct + seed-partial-label artifacts. Per-criterion
+  diagnostic: 92% of all 841 verdicts are `indeterminate`, 89%
+  of those are `unmapped_concept`; conditions dominate (73% of
+  unmapped) over labs (17%) over medications (6%); top
+  investment is concept-vocabulary expansion. Side fix landed:
+  `eval/runs.sqlite` schema bumped v1→v2 with an additive
+  `ALTER TABLE` migration to persist
+  `expected_structured` / `free_text_review_status` per case
+  so layer-1+ analyses operate on a self-contained persisted
+  run (was a silent layer-1-empty-report bug before). 2 new
+  store tests + 1 existing test edited for the version bump.
+  Decisions **D-67** (store migration) and **D-68** (baseline
+  shape).
+  Previous: D-66 — matcher soft-fail on extractor invariant
+  violations + auto-invalidating cache key. D-65 — promote LLM
+  token caps into Settings; graceful length-truncation
+  handling.
+- **Next:** PLAN tasks 2.5 (layer-2 Chia F1), 2.6 (layer-3 LLM
+  judge), and the concept-vocabulary expansion called out by
+  the D-68 diagnostic (track in §6 follow-ups). Then 3.x
+  reliability + cost work and the `juliusm.com` deploy.
+- **Gates at HEAD:** `mypy` clean (~107 src files); `ruff check` +
+  `ruff format` clean; `pytest` 393 passing, 1 pre-existing
+  failure deselected (see follow-ups). The reviewer UI is a
   thin presentation layer over the API and is exercised
   manually; no JS test runner in this repo on purpose
   (per D-64 it's not the production artifact).
@@ -78,6 +84,38 @@ so they don't get lost between sessions.
   data. Re-validate against the real revision manifest after the
   first baseline regression run; if 95%+ of revisions land in
   iteration 1, drop to 1.
+- **Concept-vocabulary expansion (highest-impact next play
+  surfaced by D-68 diagnostic).** 89% of all `indeterminate`
+  verdicts in the 2026-04-21 baseline are `unmapped_concept`;
+  conditions are 73% of those, labs 17%, meds 6%. Concrete
+  surface forms to add to `concept_lookup.py`: top conditions
+  (`intrahepatic cholangiocarcinoma`, `pregnant or lactating`,
+  `active hepatitis`, `homozygous familial hypercholesterolemia`),
+  top medications (`metformin`, `insulin`, `glp-1 agonist`,
+  `sglt2 inhibitor`), top labs (`BMI`, `hemoglobin`, `platelets`,
+  `creatinine clearance`, `ECOG performance status`). See
+  `eval/baselines/2026-04-21/INDETERMINACY.md` for ranked top-N
+  lists and the SNOMED/RxNorm/LOINC lookup work the next
+  vocab-expansion pass should chase. Estimated impact: 200-300
+  verdicts move out of `unmapped_concept`, hypertension slice
+  goes from 0/14 covered to plausibly 8-10/14.
+- **Extractor compound-criterion routing.** Several "top
+  unmapped condition" entries are actually compound clauses the
+  extractor crammed into `condition_text` instead of routing to
+  `free_text` (e.g. "severe liver dysfunction (child-pugh c
+  grade) or significant jaundice or hepatic encephalopathy").
+  Prompt patch: "if you can't isolate a single SNOMED-grade
+  condition, route to `free_text`; clauses joined by 'and'/'or'
+  go to `free_text`." Estimated impact: 50-100 verdicts move
+  from `unmapped_concept` (silent) to `human_review_required`
+  (LLM matcher actually tries). See D-68 INDETERMINACY.md.
+- **Wire structured age/sex fields into extractor.** 34 of 76
+  layer-1 cells are "missing" because the extractor reads
+  eligibility text only, missing trials whose age/sex are
+  expressed *only* via the CT.gov structured fields. Pass those
+  into the prompt or post-process to inject an implicit `age`
+  criterion when missing. Estimated impact: layer-1 coverage
+  55% → ~95%.
 
 ### Maintenance contract for this section
 
@@ -221,7 +259,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 2.4 | Layer 1 eval — deterministic: per-criterion accuracy on numeric/structured criteria. *Done — `evals/layer_one.py` aligns seed `CriterionVerdict`s against matcher `MatchVerdict`s per field (`min_age`, `max_age`, `sex`; `healthy_volunteers` documented uncoverable in v0), produces `LayerOneCell`s with `agree`/`disagree`/`missing` status, and rolls up per-field + overall agreement (excludes missing) and coverage (includes missing). `evals/report_layer_one.py` is a one-screen text renderer; `scripts/eval.py report --layer 1` dispatches to it (`--format json` also supported). 13 new tests. 373 total passing.* | 2 |
 | 2.5 | Layer 2 eval — reference-based: criterion extraction F1 vs. Chia annotations. | 4 |
 | 2.6 | Layer 3 eval — LLM-as-judge: rubric, prompt, calibration against ~30–50 hand-graded examples; report inter-rater agreement. | 6 |
-| 2.7 | First baseline regression run; commit numbers to repo as `eval/baselines/`. | 2 |
+| 2.7 | First baseline regression run; commit numbers to repo as `eval/baselines/`. *Done — fresh extraction over all 30 curated trials under the D-66 cache scheme (570 criteria, $0.067, ~18 min wall), then two eval runs against the 49-pair seed: imperative (`b55783ff962f`, ~14s scoring on cache-warm) and graph + critic (`ae7ac16936b8`, ~5 min). Both runs written to `eval/runs.sqlite`; layer-1 reports + pretty run summaries snapshotted under `eval/baselines/2026-04-21/` with a `SUMMARY.md` (provenance + per-field numbers + slice rollup) and an `INDETERMINACY.md` (per-criterion diagnostic answering "why so much indeterminacy"). Headline: layer-1 overall agreement 81.0%, coverage 55.3%, and identical between orchestrators (critic acts on rollup/rationale, not per-criterion structured-field dispatch). All 8 layer-1 disagreements are matcher-correct + seed-partial-label artifacts (mechanical labeler scored `min_age` independently of `max_age`). 0 `pass` eligibility verdicts across 49 pairs is real — synthea cohort × these specific trials don't align well, and the rollup is correctly conservative. Diagnostic finding: 92% of all 841 per-criterion verdicts are `indeterminate`, of which 89% are `unmapped_concept`; conditions dominate (73% of unmapped) over labs (17%) over medications (6%); top investment is concept-vocabulary expansion (D-67). Side fix landed in this task: store schema bumped v1→v2 with an additive `ALTER TABLE` migration to persist `expected_structured` and `free_text_review_status` per case, so layer-1+ analyses run from a self-contained persisted run instead of re-loading the seed file (was a silent layer-1-empty-report bug). 2 new store tests (v1→v2 migration, label round-trip), 1 existing test edited for the version bump. 393 total passing. Decisions D-67, D-68.* | 2 |
 | 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. *Done — SvelteKit single-page app under `web/` (Svelte 5, TypeScript, static adapter). Hand-typed `lib/api.ts` over the four FastAPI routes (no codegen — surface is ~30 lines and `juliusm.com` will retype anyway). Single `+page.svelte` mounts patient + trial selectors from `/patients` and `/trials`, posts `/score` with toggles for orchestrator (`imperative` \| `graph`), critic loop, cached extraction, and `as_of`; renders the `ScorePairResult` as a header card (eligibility pill + verdict counts + extractor model / cost / token meta) and a list of `<CriterionRow>`s. Each row is a click-to-expand affordance: collapsed shows polarity + kind + source bullet + verdict pill; expanded shows the matcher's rationale, typed evidence rows (lab / condition / medication / demographics / trial_field / missing), and a `<details>` with the raw extracted criterion JSON for debugging. `<VerdictPill>` is a closed-enum component over `pass` \| `fail` \| `indeterminate` with a per-verdict palette. Health badge in the header probes `/health` on mount; catalog and score errors are surfaced inline as banners (no toasts, no router). API base URL defaults to `http://127.0.0.1:8000` and is overridable via `VITE_API_BASE`. Per **D-69** this lives here as a *dev rig only* — the production reviewer surface ports into the `juliusm.com` repo, so this directory carries no JS test runner, no build pipeline beyond `vite dev`, and no deploy adapter. `web/.gitignore` covers `node_modules` / `.svelte-kit` / `build` so the repo root stays Python-only. Decision D-69. | 8 |
 | 2.9 | Backend: minimal FastAPI endpoint that the Svelte UI calls; CORS; deploy plan for `juliusm.com`. *Done — `clinical_demo.api` package: `create_app()` factory exposing `GET /health`, `GET /patients`, `GET /trials`, `POST /score`. `/score` accepts `patient_id`, `nct_id`, optional `as_of` (defaults to today), `orchestrator` (`imperative` or `graph`), `critic_enabled`, `use_cached_extraction`, returns the existing `ScorePairResult` envelope verbatim. Loader helpers promoted out of `scripts/` into `api/loaders.py` (third caller threshold) with process-scope caches and a `CuratedDataMissing` exception for clean 503 mapping. Wide-open CORS for the v0 demo (lock down before public deploy). `scripts/serve.py` boots uvicorn. 12 new TestClient tests pin /health, listing endpoints, scoring round-trip, error mapping (404 unknown patient/trial, 503 missing curated data, 500 scorer raises, 422 missing field), and the orchestrator switch. Built ahead of 2.4-2.7 per user direction to bias toward end-to-end usability. 385 total passing.* | 3 |
 | **Phase 2 total** | | **~38 hr** |
@@ -1380,6 +1418,94 @@ it, and the matcher won't crash the whole trial on it. FDE
 relevance: "auditable degradation paths" + "cache keys you can
 trust" are both prerequisites for a system you'd let a clinician
 look at unattended.
+
+### D-67. Eval store v1→v2 schema migration: persist labels alongside results
+**Picked:** add `expected_structured_json` and
+`free_text_review_status` columns to the `cases` table, bump
+`_SCHEMA_VERSION` from 1 to 2, and apply the additive
+`ALTER TABLE` migration in `open_store` when an existing v1 DB
+is encountered. Layer-1 reports now read labels from the row
+itself instead of expecting them on the in-memory `EvalCase`,
+which the SQLite round-trip had been silently dropping.
+
+**Why this matters:** the bug surfaced as
+`build_layer_one_report` returning `cells=[]` for a fresh
+baseline run. The seed had labels; the runner pulled them; the
+store didn't persist them; `load_run` reconstructed `EvalCase`
+with default `expected_structured=[]`; layer-1 had nothing to
+align against. Symptomatically a "no SVs in the seed?" red
+herring; underneath it's a "the persisted run isn't actually
+self-contained" problem.
+
+**Rejected (a):** layer-1 re-reads the seed file. Tightly
+couples the report layer to a file path that may have moved
+since the run. Worse, runs against a since-updated seed would
+silently use the new labels — which destroys the whole point
+of a baseline (apples-to-apples comparison across runs even as
+the labels evolve). Persisting the labels-at-run-time on the
+row is the only honest design.
+
+**Rejected (b):** version-bump-and-wipe (the path the
+`store.py` header literally documented as the v0 plan: "delete
+the DB or downgrade"). Acceptable for a one-dev project at the
+moment of bumping but forces every future schema change to
+nuke history. Doing the proper additive migration *now* —
+before the store has accumulated any historical baselines —
+sets the migration habit cheaply, and the migration step is
+~10 lines of `ALTER TABLE`. Per `store.py`'s own header
+comment, this is exactly the "and only then" moment.
+
+**Why:** baselines exist precisely to be re-comparable across
+time; a baseline file that doesn't carry its own labels can't
+honor that promise once the seed evolves. The migration ladder
+is also the thing that lets every future column add land
+without an explicit "wipe your DB" step in the changelog.
+FDE-relevant: a system that persists evaluation rows is doing
+production data work, and production data systems get schema
+migrations. The cost of doing this once now beats doing it
+under pressure later.
+
+### D-68. First baseline regression: snapshot two orchestrators + an indeterminacy diagnostic
+**Picked:** for the v0 baseline at `eval/baselines/2026-04-21/`,
+snapshot two complete eval runs (imperative and graph + critic)
+plus their layer-1 JSON reports, and write *two* prose docs:
+`SUMMARY.md` (provenance + numbers + slice rollup) and
+`INDETERMINACY.md` (per-criterion `(verdict, reason, kind)`
+breakdown plus the top-N unmapped surface forms by category).
+
+**Why both prose docs:** the JSON reports are the regression
+artifact, but they don't tell a reader *what to do next*.
+SUMMARY.md anchors "here is what is true today, with caveats"
+(e.g. the 81% layer-1 agreement is depressed by mechanical-
+labeler partial labels, not by matcher quality; the 0-pass
+rollup is real and is a cohort/trial alignment story).
+INDETERMINACY.md answers the user's actual question — "what's
+causing all the indeterminacy" — by walking 841 verdicts and
+ranking three concrete next investments by impact-per-hour
+(vocabulary expansion > extractor compound-criterion routing >
+structured age-field wiring).
+
+**Rejected:** snapshotting only one orchestrator. The
+imperative ≡ graph+critic equivalence at layer 1 is a
+non-trivial *finding* — proves the critic acts on rollup, not
+per-criterion structured dispatch — and gets surfaced only by
+having both side-by-side.
+
+**Rejected:** running with `--no-llm=False` (i.e. live LLM
+calls during the eval). Adds non-determinism to a baseline
+whose whole purpose is reproducibility. The cache-warm path
+under `--no-llm` is exactly what a regression run should look
+like; the LLM is invoked once during the upstream extraction
+pass and never again.
+
+**Why this is the right baseline shape now:** Phase 2's eval
+exit criterion is "baseline numbers committed." The numbers in
+SUMMARY.md plus the diagnostic in INDETERMINACY.md *are* that
+exit; future work can credibly say "moved coverage 55%→X%"
+because we wrote down the 55% and what it means. FDE-relevant:
+"how much of this system actually works, on what slices, and
+where would a fix produce the most movement" is exactly what a
+client conversation runs on.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

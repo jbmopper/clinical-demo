@@ -1,0 +1,714 @@
+{
+  "run_id": "b55783ff962f",
+  "notes": "baseline-v2: imperative + cached extractions + persisted labels",
+  "cells": [
+    {
+      "pair_id": "060e72d3__NCT07392658",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female patient aged ≥18 years;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "060e72d3__NCT07392658",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 99 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "1293efbb__NCT06716203",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "1293efbb__NCT06716203",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "1293efbb__NCT06727721",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "30-75 years old",
+      "status": "agree"
+    },
+    {
+      "pair_id": "1293efbb__NCT06727721",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 70 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "30-75 years old",
+      "status": "agree"
+    },
+    {
+      "pair_id": "28db1c55__NCT06859684",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "28db1c55__NCT06859684",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "28db1c55__NCT07073820",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "aged 18 years or older at screening of the previous study and completed the required treatment duration with PF-07868469 and other assessments at the end of that study.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "2e555528__NCT06859684",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "2e555528__NCT06859684",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "2e555528__NCT07354516",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 12 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "38f38890__NCT07231679",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Participant 18-60 years of age, inclusive, at Screening;",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "38f38890__NCT07231679",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 60 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Participant 18-60 years of age, inclusive, at Screening;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "38f38890__NCT07421297",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥18 years (inclusive);",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3a364909__NCT06880770",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "3a364909__NCT07052669",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age Range: Male or female patients aged 18 to 75 years.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3a364909__NCT07052669",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age Range: Male or female patients aged 18 to 75 years.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3beee40e__NCT06589765",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "3beee40e__NCT06589765",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "3beee40e__NCT06843902",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 45 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "age 45 -75 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3beee40e__NCT06843902",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "age 45 -75 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3beee40e__NCT06843902",
+      "field": "sex",
+      "seed_verdict": "fail",
+      "seed_expected": "FEMALE",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "female sex-at-birth",
+      "status": "agree"
+    },
+    {
+      "pair_id": "407ef75b__NCT06859684",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "407ef75b__NCT06859684",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "407ef75b__NCT07073820",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "aged 18 years or older at screening of the previous study and completed the required treatment duration with PF-07868469 and other assessments at the end of that study.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "509f9a77__NCT06643819",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 19 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Participants who are 19 years old or older.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "509f9a77__NCT06859684",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "509f9a77__NCT06859684",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "55c5b8d3__NCT06578533",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "18 years at the time of signing ICF.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "55c5b8d3__NCT07323732",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Patient age ≥ 18 at time of consent",
+      "status": "agree"
+    },
+    {
+      "pair_id": "56cfe6a5__NCT06859684",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "56cfe6a5__NCT06859684",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "56cfe6a5__NCT07354516",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 12 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "60b0873c__NCT05726916",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "≥ 18years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "60b0873c__NCT06880770",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "83f922a9__NCT06841055",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "9cbf47d8__NCT07052669",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Age Range: Male or female patients aged 18 to 75 years.",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "9cbf47d8__NCT07052669",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Age Range: Male or female patients aged 18 to 75 years.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9e84e569__NCT06727721",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "30-75 years old",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "9e84e569__NCT06727721",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 70 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "30-75 years old",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9e84e569__NCT07321678",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "9e84e569__NCT07321678",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "9ef4db86__NCT06661538",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 5 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "child age between 5-18 years old",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "9ef4db86__NCT07296484",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age at least 18 years.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "a06bce31__NCT06643819",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 19 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Participants who are 19 years old or older.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "a06bce31__NCT06859684",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "a06bce31__NCT06859684",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "a9a2c4dd__NCT06780410",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "18 years and older, male or female.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "a9a2c4dd__NCT07134335",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age 18~75 years old (including border value)",
+      "status": "agree"
+    },
+    {
+      "pair_id": "a9a2c4dd__NCT07134335",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age 18~75 years old (including border value)",
+      "status": "agree"
+    },
+    {
+      "pair_id": "aa01ba4c__NCT06661538",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 5 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "child age between 5-18 years old",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "aa01ba4c__NCT07502508",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "aa01ba4c__NCT07502508",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 70 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "c2786fee__NCT07037771",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 12 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥12 years, non pregnant, non lactating, do not plan to become pregnant during the study",
+      "status": "agree"
+    },
+    {
+      "pair_id": "c2786fee__NCT07231679",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Participant 18-60 years of age, inclusive, at Screening;",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "c2786fee__NCT07231679",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 60 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Participant 18-60 years of age, inclusive, at Screening;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "c46a254d__NCT06859684",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "c46a254d__NCT06859684",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "c46a254d__NCT07083765",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "c46a254d__NCT07083765",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 80 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "d02b2ca5__NCT06578533",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "18 years at the time of signing ICF.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d02b2ca5__NCT07421297",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥18 years (inclusive);",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d362f4e5__NCT07323732",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Patient age ≥ 18 at time of consent",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d57e867e__NCT06843902",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 45 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "age 45 -75 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d57e867e__NCT06843902",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "age 45 -75 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d57e867e__NCT06843902",
+      "field": "sex",
+      "seed_verdict": "pass",
+      "seed_expected": "FEMALE",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "female sex-at-birth",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d57e867e__NCT07219602",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "e7d52393__NCT05998863",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 21 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Ambulatory adult subjects (> 21 years of age) of either gender of any ethnicity",
+      "status": "agree"
+    },
+    {
+      "pair_id": "e7d52393__NCT05998863",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 99 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "e7d52393__NCT06597019",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 6 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "e7d52393__NCT06597019",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 11 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "ed803173__NCT05268237",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Males and females aged 18-65 years (inclusive)",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "ed803173__NCT05268237",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 65 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Males and females aged 18-65 years (inclusive)",
+      "status": "agree"
+    },
+    {
+      "pair_id": "ed803173__NCT06661538",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 5 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "child age between 5-18 years old",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "fa2d28b1__NCT07070518",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "participants ≥18 years of age",
+      "status": "agree"
+    }
+  ],
+  "field_stats": [
+    {
+      "field": "min_age",
+      "agree": 22,
+      "disagree": 8,
+      "missing": 19
+    },
+    {
+      "field": "max_age",
+      "agree": 10,
+      "disagree": 0,
+      "missing": 15
+    },
+    {
+      "field": "sex",
+      "agree": 2,
+      "disagree": 0,
+      "missing": 0
+    }
+  ],
+  "skipped_uncoverable": {
+    "healthy_volunteers": 6
+  },
+  "skipped_failed_cases": 0
+}
