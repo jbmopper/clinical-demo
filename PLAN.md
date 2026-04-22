@@ -19,20 +19,25 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** Task 2.9 (FastAPI backend) — commit
+- **Last completed:** Task 2.8 (Reviewer UI v0) — SvelteKit
+  single-page dev rig under `web/` calling the local FastAPI:
+  patient + trial pickers, per-criterion verdict pills,
+  click-to-expand evidence, orchestrator/critic toggles. Same
+  request schema and `ScorePairResult` envelope as the CLI.
+  Per D-69 this lives here as a **dev rig only** — the
+  production reviewer surface ports into `juliusm.com`.
+  Previous: Task 2.9 (FastAPI backend) — commit
   `087d6a2` (`feat(api): FastAPI backend over score_pair…`).
-  Built ahead of 2.5/2.6/2.7 to unblock the reviewer UI per
-  user direction (bias to usable end-to-end demo over
-  completing the eval layers in order). `clinical_demo.api`
-  package with `/health`, `/patients`, `/trials`, `/score`
-  over the existing `score_pair` / `score_pair_graph`.
-- **Next:** Reviewer UI v0 (Svelte; PLAN task 2.8). The UI
-  consumes `/score` for the per-criterion verdict pills + the
-  trial/patient catalog endpoints for selection. After that:
-  loop back to layer-2/3 evals + baseline + deploy.
+- **Next:** Loop back to PLAN tasks 2.5 (layer-2 Chia F1),
+  2.6 (layer-3 LLM judge), 2.7 (first baseline regression
+  run). Then 3.x reliability + cost work and the
+  `juliusm.com` deploy.
 - **Gates at HEAD:** `mypy` clean (99 src files); `ruff check` +
   `ruff format` clean (111 files); `pytest` 385 passing, 1
-  pre-existing failure (see follow-ups).
+  pre-existing failure (see follow-ups). The reviewer UI is a
+  thin presentation layer over the API and is exercised
+  manually; no JS test runner in this repo on purpose
+  (per D-69 it's not the production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
 ### Non-trivial open follow-ups
@@ -200,7 +205,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 2.5 | Layer 2 eval — reference-based: criterion extraction F1 vs. Chia annotations. | 4 |
 | 2.6 | Layer 3 eval — LLM-as-judge: rubric, prompt, calibration against ~30–50 hand-graded examples; report inter-rater agreement. | 6 |
 | 2.7 | First baseline regression run; commit numbers to repo as `eval/baselines/`. | 2 |
-| 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. | 8 |
+| 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. *Done — SvelteKit single-page app under `web/` (Svelte 5, TypeScript, static adapter). Hand-typed `lib/api.ts` over the four FastAPI routes (no codegen — surface is ~30 lines and `juliusm.com` will retype anyway). Single `+page.svelte` mounts patient + trial selectors from `/patients` and `/trials`, posts `/score` with toggles for orchestrator (`imperative` \| `graph`), critic loop, cached extraction, and `as_of`; renders the `ScorePairResult` as a header card (eligibility pill + verdict counts + extractor model / cost / token meta) and a list of `<CriterionRow>`s. Each row is a click-to-expand affordance: collapsed shows polarity + kind + source bullet + verdict pill; expanded shows the matcher's rationale, typed evidence rows (lab / condition / medication / demographics / trial_field / missing), and a `<details>` with the raw extracted criterion JSON for debugging. `<VerdictPill>` is a closed-enum component over `pass` \| `fail` \| `indeterminate` with a per-verdict palette. Health badge in the header probes `/health` on mount; catalog and score errors are surfaced inline as banners (no toasts, no router). API base URL defaults to `http://127.0.0.1:8000` and is overridable via `VITE_API_BASE`. Per **D-69** this lives here as a *dev rig only* — the production reviewer surface ports into the `juliusm.com` repo, so this directory carries no JS test runner, no build pipeline beyond `vite dev`, and no deploy adapter. `web/.gitignore` covers `node_modules` / `.svelte-kit` / `build` so the repo root stays Python-only. Decision D-69. | 8 |
 | 2.9 | Backend: minimal FastAPI endpoint that the Svelte UI calls; CORS; deploy plan for `juliusm.com`. *Done — `clinical_demo.api` package: `create_app()` factory exposing `GET /health`, `GET /patients`, `GET /trials`, `POST /score`. `/score` accepts `patient_id`, `nct_id`, optional `as_of` (defaults to today), `orchestrator` (`imperative` or `graph`), `critic_enabled`, `use_cached_extraction`, returns the existing `ScorePairResult` envelope verbatim. Loader helpers promoted out of `scripts/` into `api/loaders.py` (third caller threshold) with process-scope caches and a `CuratedDataMissing` exception for clean 503 mapping. Wide-open CORS for the v0 demo (lock down before public deploy). `scripts/serve.py` boots uvicorn. 12 new TestClient tests pin /health, listing endpoints, scoring round-trip, error mapping (404 unknown patient/trial, 503 missing curated data, 500 scorer raises, 422 missing field), and the orchestrator switch. Built ahead of 2.4-2.7 per user direction to bias toward end-to-end usability. 385 total passing.* | 3 |
 | **Phase 2 total** | | **~38 hr** |
 | **Exit criterion** | Full pipeline runs through LangGraph; baseline eval numbers committed; UI shows real results from real data. | |
@@ -1188,6 +1193,45 @@ abstraction was considered and cut: `eval report` is a one-screen
 pretty-printer of `RunResult` summary counts, and that's all v0
 needs. Layer reporters can read `runs.sqlite` directly when they
 land — the schema is stable and queryable.
+
+### D-64. Reviewer UI lives in `web/` as a dev rig; production reviewer ports into `juliusm.com`
+**Picked:** scaffold the SvelteKit reviewer SPA inside this
+repo under `web/`, but treat it as **scaffolding for the API**,
+not as the production artifact. No JS test runner, no deploy
+adapter beyond `adapter-static`, no CI integration on the JS
+side; `web/.gitignore` keeps `node_modules` and the build
+output local. Same Svelte version family the personal site
+uses (Svelte 5 / SvelteKit 2) so when this is ported into
+`juliusm.com` the components and types lift over with edits
+to routing and styling, not rewrites.
+**Rejected (a):** building the UI directly inside the
+`juliusm.com` Astro repo. That couples a per-trial demo to
+the personal site's deploy cycle and Astro's conventions
+before the demo's API and verdict shape have stabilized; any
+churn here would force a docs/site rebuild. Keep them
+decoupled until the API and the model are settled.
+**Rejected (b):** Streamlit fallback (the original D-5 escape
+hatch). The criterion-row UI is the part of the demo most
+worth showing — colored verdict pills, click-to-expand
+evidence, side-by-side imperative vs. graph + critic toggles.
+Streamlit's rendering primitives don't carry that as well,
+and the Svelte path was already bounded enough to ship.
+**Rejected (c):** a TypeScript codegen client (e.g.
+`openapi-typescript`) over the FastAPI's OpenAPI schema. The
+API surface is four endpoints and ~30 lines of types; a
+hand-written `lib/api.ts` is faster to ship, easier to read
+in review, and avoids a build-time dependency on the FastAPI
+being importable. When the surface grows past ~10 routes,
+revisit.
+**Why:** the user explicitly framed this UI as "have one in
+this repo for testing before we move it into the site." Two
+implications fall out: (i) keep the surface tight enough that
+the port is mechanical, and (ii) don't pay for production
+concerns (CI matrix, e2e tests, deploy adapters) that the
+production owner — `juliusm.com` — will own. The dev rig's
+job is to exercise the FastAPI through a real UI so that any
+contract drift between `ScorePairResult` and the renderer
+shows up here, not in the personal site's deploy.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

@@ -19,9 +19,15 @@ AI Forward Deployed Engineer interview.
 > `coverage` per field, `eval report --layer 1`); task 2.9
 > landed the **FastAPI backend** (`/health`, `/patients`,
 > `/trials`, `POST /score`) ahead of order so the reviewer UI
-> has something to call. **385 tests passing.** Up next:
-> reviewer UI v0, then the remaining eval layers and a
-> baseline regression run.
+> has something to call. Task 2.8 then landed the **reviewer UI**
+> as a SvelteKit dev rig under `web/` — single-page, picks a
+> patient + trial, dispatches `POST /score`, and renders the
+> per-criterion verdicts as colored pills with click-to-expand
+> evidence. **385 tests passing** (Python; the UI is a thin
+> presentation layer over the API and is exercised manually).
+> Up next: the remaining eval layers and a baseline regression
+> run; the UI gets ported into `juliusm.com` for the
+> public-facing demo.
 
 ## What it is (one paragraph)
 
@@ -66,6 +72,7 @@ uv run python scripts/score_pair.py --help        # imperative orchestrator
 uv run python scripts/score_pair_graph.py --help  # LangGraph orchestrator
 uv run python scripts/eval.py --help              # eval harness CLI
 uv run python scripts/serve.py                    # FastAPI demo server (127.0.0.1:8000)
+(cd web && npm run dev)                           # SvelteKit reviewer UI (127.0.0.1:5173)
 ```
 
 ## Data
@@ -455,6 +462,37 @@ curl -s -X POST http://127.0.0.1:8000/score \
 CORS is wide-open for the v0 demo (the reviewer UI and the API
 will be served from different ports during dev). Lock down
 `allow_origins` before any non-demo deployment.
+
+## Reviewer UI (Phase 2.8)
+
+A minimal SvelteKit single-page app lives under `web/`. It is
+intentionally a **dev rig**: the production reviewer surface lives
+in the `juliusm.com` repo, and this one exists so the API +
+scoring pipeline can be exercised through a real UI without
+publishing anything. Same FastAPI backend, same `ScorePairResult`
+shape; the only thing different is where the bytes get served.
+
+The page picks a patient and a trial from the catalog endpoints,
+posts `/score`, and renders the per-criterion verdicts as colored
+pills (`pass` / `fail` / `indeterminate`) with click-to-expand
+rationale + typed evidence rows. Toggles for the imperative vs.
+graph orchestrator, the critic loop, and cached extraction are
+wired through to the request body so the demo can show all four
+combinations without leaving the page.
+
+```bash
+# In one terminal: boot the API
+uv run python scripts/serve.py
+
+# In another: install + run the dev UI (first run only)
+cd web
+npm install
+npm run dev          # http://127.0.0.1:5173
+```
+
+The UI hits `http://127.0.0.1:8000` by default. Override with
+`VITE_API_BASE` (see `web/.env.example`) — useful when porting
+into `juliusm.com` against a deployed API.
 
 ## Observability
 
