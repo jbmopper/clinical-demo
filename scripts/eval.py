@@ -34,6 +34,8 @@ from clinical_demo.data.clinicaltrials import trial_from_raw
 from clinical_demo.data.synthea import iter_bundles
 from clinical_demo.domain.patient import Patient
 from clinical_demo.domain.trial import Trial
+from clinical_demo.evals.layer_one import build_layer_one_report
+from clinical_demo.evals.report_layer_one import render_layer_one
 from clinical_demo.evals.run import EvalCase, RunResult, load_dataset, run_eval
 from clinical_demo.evals.store import list_runs, load_run, open_store, save_run
 from clinical_demo.scoring import (
@@ -248,6 +250,13 @@ def _cmd_report(args: argparse.Namespace) -> int:
             print(f"error: no run with id {args.run_id!r}", file=sys.stderr)
             return 1
 
+    if args.layer == 1:
+        report = build_layer_one_report(run)
+        if args.format == "json":
+            print(report.model_dump_json(indent=2))
+        else:
+            print(render_layer_one(report))
+        return 0
     if args.format == "json":
         print(run.model_dump_json(indent=2))
     else:
@@ -292,6 +301,13 @@ def main(argv: list[str] | None = None) -> int:
     p_report.add_argument("--db", default=str(DEFAULT_DB))
     p_report.add_argument("--run-id", default=None)
     p_report.add_argument("--format", choices=("text", "json"), default="text")
+    p_report.add_argument(
+        "--layer",
+        type=int,
+        choices=(1,),
+        default=None,
+        help="Layer-specific report (currently only layer 1 implemented).",
+    )
     p_report.set_defaults(func=_cmd_report)
 
     args = parser.parse_args(argv)
