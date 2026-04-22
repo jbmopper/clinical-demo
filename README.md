@@ -13,13 +13,15 @@ AI Forward Deployed Engineer interview.
 > (`rollup → critic → [revise → rollup | finalize]`) with closed-enum
 > process findings, bounded revisions, no-progress detection, and
 > an opt-in `interrupt_before` human checkpoint on `finalize`.
-> Imperative `score_pair()` and the graph version run side-by-side
-> until the layer-1 eval (task 2.4) confirms parity. Phase 2 task
-> 2.3 has landed the **eval harness scaffolding**: an
-> orchestrator-agnostic `run_eval()` over a `Callable` scorer,
-> append-only SQLite results store, and a one-shot
-> `eval run` / `eval report` CLI. **360 tests passing.** Up
-> next: layer-1 (deterministic) eval and the reviewer UI.
+> Imperative `score_pair()` and the graph version run side-by-side.
+> Phase 2 task 2.3 landed the eval harness scaffolding;
+> task 2.4 added a layer-1 (deterministic) eval (`agreement` +
+> `coverage` per field, `eval report --layer 1`); task 2.9
+> landed the **FastAPI backend** (`/health`, `/patients`,
+> `/trials`, `POST /score`) ahead of order so the reviewer UI
+> has something to call. **385 tests passing.** Up next:
+> reviewer UI v0, then the remaining eval layers and a
+> baseline regression run.
 
 ## What it is (one paragraph)
 
@@ -63,6 +65,7 @@ uv run marimo edit marimo/explore_eval_seed.py  # eval seed-set tour
 uv run python scripts/score_pair.py --help        # imperative orchestrator
 uv run python scripts/score_pair_graph.py --help  # LangGraph orchestrator
 uv run python scripts/eval.py --help              # eval harness CLI
+uv run python scripts/serve.py                    # FastAPI demo server (127.0.0.1:8000)
 ```
 
 ## Data
@@ -409,6 +412,49 @@ Layer-specific reporting (deterministic accuracy in 2.4, Chia
 agreement in 2.5, judge calibration in 2.6) reads `runs.sqlite`
 directly when those tasks land — the schema is stable and
 queryable from day one.
+
+## HTTP API (Phase 2.9)
+
+`clinical_demo.api.create_app()` returns a FastAPI app with four
+routes:
+
+- `GET /health` — liveness probe.
+- `GET /patients` — cohort manifest rows (id, score, slice).
+- `GET /trials` — `{nct_id, title}` per curated trial.
+- `POST /score` — score one (patient, trial) pair; returns the
+  same `ScorePairResult` envelope the CLI emits.
+
+The route layer is intentionally thin (request validation +
+loader dispatch + scorer call); all logic lives in
+`clinical_demo.scoring` / `.graph` so the CLI, the eval harness,
+and the API call exactly the same code path. Loader helpers live
+in `api/loaders.py` with process-scope caches so repeated
+requests for the same patient or trial are O(1).
+
+```bash
+# Boot the demo server (defaults to 127.0.0.1:8000)
+uv run python scripts/serve.py
+
+# Or directly via uvicorn
+uv run uvicorn clinical_demo.api:create_app --factory --port 8000
+```
+
+```bash
+# Score one pair via the imperative orchestrator
+curl -s -X POST http://127.0.0.1:8000/score \
+  -H 'content-type: application/json' \
+  -d '{"patient_id": "<id>", "nct_id": "<nct>", "as_of": "2025-01-01"}'
+
+# Same pair via the graph orchestrator with the critic loop
+curl -s -X POST http://127.0.0.1:8000/score \
+  -H 'content-type: application/json' \
+  -d '{"patient_id": "<id>", "nct_id": "<nct>",
+       "orchestrator": "graph", "critic_enabled": true}'
+```
+
+CORS is wide-open for the v0 demo (the reviewer UI and the API
+will be served from different ports during dev). Lock down
+`allow_origins` before any non-demo deployment.
 
 ## Observability
 

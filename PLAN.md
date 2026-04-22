@@ -19,20 +19,19 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** Task 2.4 (layer-1 deterministic eval:
-  per-field alignment seed↔matcher, agreement + coverage,
-  `report --layer 1` CLI) — commit `bf8d24d`
-  (`feat(evals): layer-1 deterministic eval…`) on top of
-  `ea0f81f`. `healthy_volunteers` deliberately uncoverable in
-  v0 (no extractor kind for it); skip is counted in the report
-  rather than masked.
-- **Next:** Push through the rest of Phase 2 thinly to get a
-  usable end-to-end demo (layer-2/3 evals, baseline, reviewer
-  UI, FastAPI backend, deploy). User has signaled bias to
-  shipping over scope-perfecting; a real review pass comes
-  after the system is usable end-to-end.
-- **Gates at HEAD:** `mypy` clean (94 src files); `ruff check` +
-  `ruff format` clean (105 files); `pytest` 373 passing, 1
+- **Last completed:** Task 2.9 (FastAPI backend) — commit
+  `087d6a2` (`feat(api): FastAPI backend over score_pair…`).
+  Built ahead of 2.5/2.6/2.7 to unblock the reviewer UI per
+  user direction (bias to usable end-to-end demo over
+  completing the eval layers in order). `clinical_demo.api`
+  package with `/health`, `/patients`, `/trials`, `/score`
+  over the existing `score_pair` / `score_pair_graph`.
+- **Next:** Reviewer UI v0 (Svelte; PLAN task 2.8). The UI
+  consumes `/score` for the per-criterion verdict pills + the
+  trial/patient catalog endpoints for selection. After that:
+  loop back to layer-2/3 evals + baseline + deploy.
+- **Gates at HEAD:** `mypy` clean (99 src files); `ruff check` +
+  `ruff format` clean (111 files); `pytest` 385 passing, 1
   pre-existing failure (see follow-ups).
 - **Branch:** `main`, pushed to `origin`.
 
@@ -202,7 +201,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 2.6 | Layer 3 eval — LLM-as-judge: rubric, prompt, calibration against ~30–50 hand-graded examples; report inter-rater agreement. | 6 |
 | 2.7 | First baseline regression run; commit numbers to repo as `eval/baselines/`. | 2 |
 | 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. | 8 |
-| 2.9 | Backend: minimal FastAPI endpoint that the Svelte UI calls; CORS; deploy plan for `juliusm.com`. | 3 |
+| 2.9 | Backend: minimal FastAPI endpoint that the Svelte UI calls; CORS; deploy plan for `juliusm.com`. *Done — `clinical_demo.api` package: `create_app()` factory exposing `GET /health`, `GET /patients`, `GET /trials`, `POST /score`. `/score` accepts `patient_id`, `nct_id`, optional `as_of` (defaults to today), `orchestrator` (`imperative` or `graph`), `critic_enabled`, `use_cached_extraction`, returns the existing `ScorePairResult` envelope verbatim. Loader helpers promoted out of `scripts/` into `api/loaders.py` (third caller threshold) with process-scope caches and a `CuratedDataMissing` exception for clean 503 mapping. Wide-open CORS for the v0 demo (lock down before public deploy). `scripts/serve.py` boots uvicorn. 12 new TestClient tests pin /health, listing endpoints, scoring round-trip, error mapping (404 unknown patient/trial, 503 missing curated data, 500 scorer raises, 422 missing field), and the orchestrator switch. Built ahead of 2.4-2.7 per user direction to bias toward end-to-end usability. 385 total passing.* | 3 |
 | **Phase 2 total** | | **~38 hr** |
 | **Exit criterion** | Full pipeline runs through LangGraph; baseline eval numbers committed; UI shows real results from real data. | |
 
