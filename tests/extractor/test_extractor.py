@@ -253,6 +253,54 @@ def test_missing_parsed_without_refusal_raises():
         )
 
 
+def test_length_truncation_returns_empty_extraction_with_note():
+    """Length truncation is a known LLM failure mode for big trials.
+    We must NOT 500 the pipeline — instead the extractor returns an
+    empty `criteria` list with a `metadata.notes` flag so callers
+    (and the eval harness) can still produce a verdict + cost record.
+
+    This pins the contract observed in the failing trace at
+    NCT05268237: the model emitted exactly `extractor_max_output_tokens`
+    completion tokens, the OpenAI SDK raised `LengthFinishReasonError`,
+    and the old code path bubbled it up as an HTTP 500."""
+    from openai import LengthFinishReasonError
+
+    settings = _settings()  # cap=4096
+
+    truncated_completion = _make_completion(
+        parsed=None,
+        finish_reason="length",
+        prompt_tokens=6275,
+        completion_tokens=4096,
+    )
+
+    class _RaisingCompletions(_ChatCompletionsParser):
+        def parse(self, **kwargs: Any) -> ParsedChatCompletion[ExtractedCriteria]:
+            raise LengthFinishReasonError(completion=truncated_completion)
+
+    class _RaisingChat(_ChatGroup):
+        def __init__(self) -> None:
+            self.completions: _ChatCompletionsParser = _RaisingCompletions()
+
+    class _RaisingClient(_ClientLike):
+        def __init__(self) -> None:
+            self.chat: _ChatGroup = _RaisingChat()
+
+    result = extract_criteria(
+        "anything large enough that the model overflows",
+        client=_RaisingClient(),
+        settings=settings,
+    )
+
+    assert result.extracted.criteria == []
+    assert "length-truncated" in result.extracted.metadata.notes
+    assert "4096" in result.extracted.metadata.notes
+    assert result.meta.input_tokens == 6275
+    assert result.meta.output_tokens == 4096
+    assert result.meta.cost_usd is not None and result.meta.cost_usd > 0
+    assert result.meta.latency_ms is not None and result.meta.latency_ms >= 0
+
+
 def test_missing_api_key_raises_when_no_client_provided():
     """Production callers must either set OPENAI_API_KEY or pass a
     client; we don't silently use anonymous credentials."""

@@ -152,7 +152,7 @@ def critic_node(
         model=settings.extractor_model,
         model_parameters={
             "temperature": settings.extractor_temperature,
-            "max_tokens": 1024,
+            "max_tokens": settings.critic_max_output_tokens,
         },
         input=user_message,
         metadata={
@@ -169,7 +169,7 @@ def critic_node(
                 messages=messages,
                 response_format=_LLMCriticOutput,
                 temperature=settings.extractor_temperature,
-                max_tokens=1024,
+                max_tokens=settings.critic_max_output_tokens,
             )
         except Exception as exc:
             span.update(

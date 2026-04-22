@@ -50,7 +50,30 @@ class Settings(BaseSettings):
 
     extractor_model: str = "gpt-4o-mini-2024-07-18"
     extractor_temperature: float = 0.0
-    extractor_max_output_tokens: int = 4096
+    # gpt-4o-mini supports 16384 output tokens. The extractor returns a
+    # structured array of criteria that scales with eligibility-text
+    # length; trials in the curated set hit ~6.3k input tokens and can
+    # exceed the old 4096 output ceiling on the largest protocols
+    # (NCT05268237 was the first observed case). Headroom is free
+    # below the actual response size — provider only bills for tokens
+    # emitted — so we set the cap at the model's hard ceiling and rely
+    # on the graceful-truncation path in the extractor for anything
+    # larger.
+    extractor_max_output_tokens: int = 16384
+
+    # Per-criterion structured verdict from the LLM matcher node. A
+    # verdict is a small object (verdict + reason + 1-2 sentence
+    # rationale + a list of evidence ids), so 1024 tokens is roughly
+    # 4-8x what we'd ever expect to see, but cheap insurance against
+    # length truncation on a free-text criterion that prompts a long
+    # rationale. Was 512.
+    llm_matcher_max_output_tokens: int = 1024
+
+    # Critic emits a list of structured findings across all criteria
+    # in the rollup, so its output scales with criterion count, not
+    # with any single criterion. 2048 lets the critic flag warnings
+    # on a ~30-criterion trial without overflow. Was 1024.
+    critic_max_output_tokens: int = 2048
 
     @property
     def is_langfuse_configured(self) -> bool:

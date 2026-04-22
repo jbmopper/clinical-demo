@@ -17,17 +17,20 @@ baseline.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
-from openai import OpenAI
+from openai import LengthFinishReasonError, OpenAI
 from openai.types.chat import ParsedChatCompletion
 
 from ..observability import traced
 from ..settings import Settings, get_settings
 from .prompt import PROMPT_VERSION, build_messages
 from .schema import ExtractedCriteria, ExtractionMetadata, ExtractorRunMeta
+
+log = logging.getLogger(__name__)
 
 
 class _ChatCompletionsParser(Protocol):
@@ -155,6 +158,16 @@ def extract_criteria(
         Completion finished without a parsed payload and without a
         refusal. Indicates a SDK / API regression; should never happen
         in steady state.
+
+    Length truncation (`finish_reason == "length"`) does **not** raise:
+    `openai.LengthFinishReasonError` is caught internally and converted
+    to an `ExtractionResult` with `criteria=[]` and a note on
+    `metadata.notes` explaining the truncation. Cost and token counts
+    on `meta` are preserved (the user was charged for the truncated
+    completion). The Langfuse span is tagged WARNING. Callers can
+    detect this case by checking either `len(result.extracted.criteria) == 0`
+    or by parsing the notes string; downstream rollups treat it as
+    "no criteria" and produce a vacuous `pass`.
     """
     settings = settings or get_settings()
     if not eligibility_text.strip():
@@ -207,6 +220,71 @@ def extract_criteria(
                 response_format=ExtractedCriteria,
                 temperature=settings.extractor_temperature,
                 max_tokens=settings.extractor_max_output_tokens,
+            )
+        except LengthFinishReasonError as exc:
+            # Length truncation is a known LLM failure mode for very
+            # large eligibility texts: the model stopped emitting at
+            # `max_tokens` mid-JSON, so structured-output parsing
+            # cannot return a valid `ExtractedCriteria`. Rather than
+            # 500 the whole pipeline, return an empty extraction with
+            # a `metadata.notes` flag and preserve cost/usage on
+            # `meta` (we paid for those tokens; eval rollups must
+            # not undercount). Tagged WARNING (not ERROR) on the
+            # span so dashboards can split graceful degradation from
+            # genuine failures. Caller's downstream rollup will
+            # collapse to `pass` (vacuously) on an empty criteria
+            # list — that's acceptable v0 behavior; the real fix is
+            # to either bump `extractor_max_output_tokens` or split
+            # extraction across criterion sections, both of which are
+            # out of scope here.
+            error_latency_ms = (time.monotonic() - started) * 1000.0
+            usage = exc.completion.usage
+            in_tokens = usage.prompt_tokens if usage else None
+            out_tokens = usage.completion_tokens if usage else None
+            cost = _estimate_cost_usd(settings.extractor_model, in_tokens, out_tokens)
+            note = (
+                f"length-truncated at {out_tokens} output tokens "
+                f"(cap={settings.extractor_max_output_tokens}); "
+                f"returning empty criteria"
+            )
+            log.warning(
+                "extractor length-truncated for prompt of %d tokens (cap=%d). "
+                "Consider raising extractor_max_output_tokens or splitting the "
+                "eligibility text.",
+                in_tokens or 0,
+                settings.extractor_max_output_tokens,
+            )
+            span.update(
+                level="WARNING",
+                status_message=note,
+                output={"length_truncated": True, "completion_tokens": out_tokens},
+                usage_details={
+                    k: v
+                    for k, v in {"input": in_tokens, "output": out_tokens}.items()
+                    if v is not None
+                },
+                cost_details={"total": cost} if cost is not None else None,
+                metadata={
+                    "prompt_version": PROMPT_VERSION,
+                    "latency_ms": str(round(error_latency_ms, 2)),
+                    "finish_reason": "length",
+                    "length_truncated": "true",
+                },
+            )
+            return ExtractionResult(
+                extracted=ExtractedCriteria(
+                    criteria=[],
+                    metadata=ExtractionMetadata(notes=note),
+                ),
+                meta=ExtractorRunMeta(
+                    model=settings.extractor_model,
+                    prompt_version=PROMPT_VERSION,
+                    input_tokens=in_tokens,
+                    output_tokens=out_tokens,
+                    cached_input_tokens=None,
+                    cost_usd=cost,
+                    latency_ms=error_latency_ms,
+                ),
             )
         except Exception as exc:
             # Latency on the error path is still a useful signal
