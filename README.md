@@ -14,8 +14,12 @@ AI Forward Deployed Engineer interview.
 > process findings, bounded revisions, no-progress detection, and
 > an opt-in `interrupt_before` human checkpoint on `finalize`.
 > Imperative `score_pair()` and the graph version run side-by-side
-> until the eval harness in 2.3 confirms parity. **340 tests
-> passing.** Up next: eval harness and the reviewer UI.
+> until the layer-1 eval (task 2.4) confirms parity. Phase 2 task
+> 2.3 has landed the **eval harness scaffolding**: an
+> orchestrator-agnostic `run_eval()` over a `Callable` scorer,
+> append-only SQLite results store, and a one-shot
+> `eval run` / `eval report` CLI. **360 tests passing.** Up
+> next: layer-1 (deterministic) eval and the reviewer UI.
 
 ## What it is (one paragraph)
 
@@ -58,6 +62,7 @@ uv run marimo edit marimo/explore_chia.py       # Chia annotation tour
 uv run marimo edit marimo/explore_eval_seed.py  # eval seed-set tour
 uv run python scripts/score_pair.py --help        # imperative orchestrator
 uv run python scripts/score_pair_graph.py --help  # LangGraph orchestrator
+uv run python scripts/eval.py --help              # eval harness CLI
 ```
 
 ## Data
@@ -359,6 +364,51 @@ rather than a wrapped helper — Phase 2.8 will wrap it behind the
 reviewer UI's API once the override semantics are settled. By
 default (`human_checkpoint=False`) `finalize` runs inline — same
 node, two modes, no graph fork.
+
+## Eval harness (Phase 2.3)
+
+`clinical_demo.evals` is the scorer-agnostic plumbing the next
+three tasks (layer-1/2/3 evals) sit on top of:
+
+- `EvalCase` / `CaseRecord` / `RunResult` Pydantic envelopes.
+- `load_dataset(seed_path, pair_ids=…, limit=…)` — reads the
+  existing `data/curated/eval_seed.json`; no parallel format.
+- `run_eval(scorer, cases, dataset_path, notes=…)` — calls
+  `scorer(case)` per pair, catches per-case exceptions onto the
+  case row (one bad pair doesn't tank a 50-pair run), returns a
+  `RunResult` with aggregate latency / cost.
+- `evals.store.open_store(db_path)` — append-only SQLite at
+  `eval/runs.sqlite` (gitignored). Two tables: `runs` and
+  `cases`; the full `ScorePairResult` lives on
+  `cases.result_json` so layer code reads strongly-typed results
+  back without reaching into the schema.
+
+The scorer is just a `Callable[[EvalCase], ScorePairResult]`, so
+the imperative `score_pair()`, the LangGraph
+`score_pair_graph()`, and any future critic-on/critic-off split
+are all "just a scorer" — no orchestrator registry inside the
+harness.
+
+```bash
+# Score every pair in the seed via the imperative orchestrator
+uv run python scripts/eval.py run \
+    --orchestrator imperative \
+    --notes "score_pair v0 baseline"
+
+# Smoke-run 3 pairs through the LangGraph orchestrator with critic on
+uv run python scripts/eval.py run \
+    --orchestrator graph --critic-enabled --limit 3 \
+    --notes "graph + critic, 3-pair smoke"
+
+# Re-render any persisted run; or list runs (run_id omitted)
+uv run python scripts/eval.py report --run-id <id>
+uv run python scripts/eval.py report
+```
+
+Layer-specific reporting (deterministic accuracy in 2.4, Chia
+agreement in 2.5, judge calibration in 2.6) reads `runs.sqlite`
+directly when those tasks land — the schema is stable and
+queryable from day one.
 
 ## Observability
 

@@ -19,14 +19,16 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** Task 2.2 (aggregator + critic loop with
-  HITL seam) — commit `790bb23` (`docs(plan): escape pipes…`)
-  on top of `31247d1` (`feat(graph): aggregator + critic loop…`)
-  and `ce5f096` (`docs: PLAN.md task 2.2 done…`).
-- **Next:** Task 2.3 — eval harness scaffolding (dataset format,
-  runner, results store, CLI: `eval run`, `eval report`).
-- **Gates at HEAD:** `mypy` clean (86 src files); `ruff check` +
-  `ruff format` clean (96 files); `pytest` 340 passing, 1
+- **Last completed:** Task 2.3 (eval harness scaffolding:
+  dataset adapter, runner, SQLite store, `eval run` /
+  `eval report` CLI) — commit `bbe9faf`
+  (`feat(evals): scorer-agnostic eval harness…`) on top of
+  `67539bf` (`docs(plan): add §0 current-state block…`), and
+  the docs commit added by this same task.
+- **Next:** Task 2.4 — Layer 1 eval (deterministic vs Synthea
+  ground truth) using `clinical_demo.evals` as the harness.
+- **Gates at HEAD:** `mypy` clean (91 src files); `ruff check` +
+  `ruff format` clean (102 files); `pytest` 360 passing, 1
   pre-existing failure (see follow-ups).
 - **Branch:** `main`, pushed to `origin`.
 
@@ -190,7 +192,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 |---|---|---|
 | 2.1 | LangGraph migration: per-criterion fan-out, deterministic-first conditional routing, LLM matcher node, join. *Done — `clinical_demo.graph` package: `ScoringState` TypedDict with an `operator.add` reducer over `(criterion_index, MatchVerdict)` tuples; nodes for `extract`, deterministic match (thin wrapper over `match_criterion`), LLM match (new — strict structured-output OpenAI call gated on `kind == "free_text"`, with stub-friendly Protocol client), and `rollup` (sort indices, reuse imperative `_summarize`/`_rollup`); routing via `fan_out_criteria` returning `Send` objects (or rollup name when zero criteria); `score_pair_graph()` mirrors `score_pair()` with the same `ScorePairResult` envelope; opens a parent `score_pair_graph` span tagged `orchestrator=langgraph` so extractor + per-criterion `llm_match` generations nest under it. Side-by-side mirror script `scripts/score_pair_graph.py`. 35 new tests pin state, routing, both matcher nodes, end-to-end, and span structure (299 total passing). Decisions D-45..D-49.* | 5 |
 | 2.2 | Aggregator + Critic loop: bounded revision iterations, termination conditions, human-checkpoint hook. *Done — `clinical_demo.graph` package gains `critic_node`, `revise_node`, `finalize_node` and a `route_after_critic` conditional edge wired as `rollup → critic → [revise → rollup` \| `finalize]`. The critic is a separate LLM call with its own pinned prompt (`LLM_CRITIC_VERSION = "llm-critic-v0.1"`) that emits closed-enum **process** findings (`polarity_smell`, `extraction_disagreement_with_text`, `low_confidence_indeterminate`) with `info` \| `warning` \| `blocker` severities; it never re-decides eligibility itself. Revise picks the highest-severity warning, dispatches to a closed-enum action (`rerun_match_with_focus`, `flip_polarity_and_rematch`, `rerun_extract_for_criterion`), and re-runs the existing matcher path so revisions stay auditable. Loop terminates on (a) no actionable findings, (b) `max_critic_iterations` budget (default 2), (c) no-progress detection comparing the current iteration's finding fingerprints to the previous; LangGraph's `recursion_limit` is a runtime config backstop. New `merge_indexed_verdicts` reducer gives `indexed_verdicts` replace-by-index semantics so revised verdicts supersede rather than coexist. Human checkpoint is opt-in (`human_checkpoint=True`): graph compiles with `InMemorySaver(serde=JsonPlusSerializer(pickle_fallback=True))` and `interrupt_before=[FINALIZE_NODE]`, requires a `thread_id`, and resumes via the same `score_pair_graph()` entry. Observability tags critic/revise/finalize spans with iteration + action + criterion-index + verdict-changed metadata, plus per-pair `critic_iterations` / `revisions_total` / `revisions_changed_verdict` on the parent. 32 new tests across `test_critic_node.py`, `test_revise_node.py`, `test_route_after_critic.py`, `test_critic_loop_e2e.py`, `test_human_checkpoint.py` cover defensive index filtering, refusal handling, fingerprint snapshots, action dispatch (free-text vs deterministic, polarity flip, no-op recording), termination conditions, e2e parity when the critic is disabled, and HITL pause/resume — plus expansions to `test_state.py` (new reducer + state keys) and `test_observability.py` (new spans). 340 total passing. Decisions D-50..D-58.* | 4 |
-| 2.3 | Eval harness scaffolding: dataset format, runner, results store, basic CLI (`eval run`, `eval report`). | 4 |
+| 2.3 | Eval harness scaffolding: dataset format, runner, results store, basic CLI (`eval run`, `eval report`). *Done — new `clinical_demo.evals` package adds `EvalCase` / `CaseRecord` / `RunResult` pydantic envelopes, `load_dataset()` reusing the existing `eval_seed.json` shape, and a one-call `run_eval(scorer, cases)` that's deliberately orchestrator-agnostic (the scorer is a `Callable[[EvalCase], ScorePairResult]`, so `score_pair()`, `score_pair_graph()`, and any future variants are all "just a scorer"). SQLite store (`evals.store`) is two append-only tables — `runs` plus `cases` carrying flat per-case summary cols **and** the full `ScorePairResult` as a `result_json` blob (D-60); a normalized verdicts table is deferred until a layer query motivates it. Per-case scorer exceptions are caught and recorded on the row instead of failing the run (D-62). New `scripts/eval.py` exposes `run` (with `--orchestrator`, `--no-llm`, `--critic-enabled`, `--pair-id`, `--limit`, `--notes`) and `report` (id-or-list, `--format text\|json`); `eval/runs.sqlite` is gitignored. 20 new tests across `test_run.py` (dataset round-trip, filtering, runner success + failure isolation + callback ordering) and `test_store.py` (idempotent schema + `user_version`, save/load round-trip including `extraction_meta`, append-only enforcement, failed-case persistence, listing newest-first). 360 total passing. Decisions D-59..D-63.* | 4 |
 | 2.4 | Layer 1 eval — deterministic: per-criterion accuracy on numeric/structured criteria. | 2 |
 | 2.5 | Layer 2 eval — reference-based: criterion extraction F1 vs. Chia annotations. | 4 |
 | 2.6 | Layer 3 eval — LLM-as-judge: rubric, prompt, calibration against ~30–50 hand-graded examples; report inter-rater agreement. | 6 |
@@ -1106,6 +1108,83 @@ Langfuse trace (D-57), and the in-process caller can still read
 it off the graph's `final_state` if it needs to. Phase 2.3 may
 introduce a richer `ScoreRunResult` envelope once the eval
 harness lands; deferred until there's a concrete consumer.
+
+### D-59. Eval harness scorer is a `Callable`, not a registered orchestrator
+**Picked:** `run_eval(scorer, cases)` where
+`scorer: Callable[[EvalCase], ScorePairResult]`.
+**Rejected:** an `Orchestrator` enum + dispatch table inside the
+harness; or a base class the imperative and graph paths both
+subclass.
+**Why:** the harness's job is to score N cases and persist the
+result. Knowing *how* the scorer works (which model, which
+prompt, critic on/off, which extraction policy) is the caller's
+responsibility, and a `Callable` is the smallest contract that
+respects that. A registry would force every new orchestrator
+variant to land code in `evals/` even when the variant is
+genuinely orthogonal — a critic-enabled vs critic-disabled run
+is not a new orchestrator, it's a different `partial`. The
+script (`scripts/eval.py`) carries the bridging logic; the
+library doesn't.
+
+### D-60. Two-table schema with a `result_json` blob, not a normalized verdicts table
+**Picked:** `runs` + `cases` tables; the full `ScorePairResult`
+serializes into `cases.result_json`. Per-case summary columns
+(eligibility, verdict counts, extraction cost, latency) are
+flattened onto `cases` so an operator can `SELECT eligibility,
+COUNT(*)` without `json_extract` gymnastics.
+**Rejected:** a third `verdicts` table with one row per
+criterion verdict from day one.
+**Why:** v0 doesn't have a query that needs per-verdict joins —
+layer-1 (deterministic vs Synthea) walks the structured-criterion
+verdicts in a single dict comparison; layer-2 (Chia) is a
+separate dataset entirely; layer-3 (LLM judge) is the same
+shape. JSON blob storage costs ~one Pydantic round-trip on read
+and gains zero meaningful lookup speed at the dataset sizes we
+care about (49 pairs today, ~500 once we burn down the
+human-review backlog). When a real query motivates a
+`verdicts` table, the migration is `INSERT INTO verdicts
+SELECT … FROM cases CROSS JOIN json_each(result_json, '$.verdicts')` —
+fully recoverable from the blob.
+
+### D-61. Runs are append-only; same `run_id` is a hard error
+**Picked:** `save_run` raises `IntegrityError` on duplicate
+`run_id`. Re-scoring a dataset gets a new id.
+**Rejected:** "upsert" semantics that overwrite a previous run
+in place.
+**Why:** the eval store is the audit trail for "what did the
+system look like on date X." Silently overwriting a run
+destroys baselines and makes regressions invisible; explicit
+re-runs with new ids preserve the lineage. Storage cost is
+trivial.
+
+### D-62. Per-case scorer failures recorded on the row, not allowed to abort the run
+**Picked:** `run_eval` wraps each `scorer(case)` in a
+`try/except`; on failure, persist `error TEXT` and NULL out the
+per-case summary cols. `n_errors` is a top-level field on
+`RunResult`.
+**Rejected:** propagating the first exception and aborting; or
+silently skipping the case with no record.
+**Why:** in a 50-pair run, a single 429 or transient extraction
+failure shouldn't lose 49 successes. Recording the error keeps
+the failure visible for layer-1 to reason about, but doesn't
+gate progress. v0 doesn't surface a failure-rate metric in the
+reporter (the count is one digit at the bottom of the summary);
+that earns its place once we have a real production baseline.
+
+### D-63. No layer-specific eval logic in 2.3
+**Picked:** `evals/run.py` and `evals/store.py` are pure
+plumbing. They don't know what "deterministic accuracy" or
+"LLM judge calibration" mean.
+**Rejected:** baking layer-1 metrics (e.g. structured-verdict
+agreement rate) into the runner or the reporter so 2.3 ships
+with "real" numbers.
+**Why:** layer-specific logic belongs in tasks 2.4-2.6, where
+each layer can pick its own metric, output format, and
+red-team set without retrofitting the harness. A reporter
+abstraction was considered and cut: `eval report` is a one-screen
+pretty-printer of `RunResult` summary counts, and that's all v0
+needs. Layer reporters can read `runs.sqlite` directly when they
+land — the schema is stable and queryable.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
