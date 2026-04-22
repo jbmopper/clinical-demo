@@ -22,4 +22,6 @@ data/raw/
 data/curated/
 data/cache/
 
+eval/
+
 __marimo__/
