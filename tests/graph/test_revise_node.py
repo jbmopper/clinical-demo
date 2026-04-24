@@ -16,8 +16,9 @@ Covers:
 from __future__ import annotations
 
 from clinical_demo.graph.critic_types import CriticFinding
-from clinical_demo.graph.nodes.llm_match import _LLMMatcherOutput
+from clinical_demo.graph.nodes.llm_match import _LLMMatcherOutput, llm_match_node
 from clinical_demo.graph.nodes.revise import _action_for, _flip_polarity, revise_node
+from clinical_demo.graph.state import ScoringState
 from clinical_demo.matcher import MATCHER_VERSION, MatchVerdict
 from clinical_demo.matcher.verdict import TrialFieldEvidence
 from clinical_demo.settings import Settings
@@ -196,6 +197,79 @@ def test_rerun_with_focus_on_free_text_calls_llm_matcher() -> None:
     new_v = result["indexed_verdicts"][0][1]
     assert new_v.verdict == "pass"
     assert result["critic_revisions"][0].verdict_changed is True
+
+
+def test_rerun_with_focus_prompt_differs_from_original_free_text_match() -> None:
+    """The focused re-run must pass reviewer context to the LLM matcher."""
+    from ..matcher._fixtures import crit_free_text
+
+    criterion = crit_free_text()
+    free_v = MatchVerdict(
+        criterion=criterion,
+        verdict="indeterminate",
+        reason="no_data",
+        rationale="snapshot didn't mention it",
+        evidence=[],
+        matcher_version=MATCHER_VERSION,
+    )
+    finding_rationale = "prior rationale missed a borderline active-condition signal"
+    state = state_with_verdicts(
+        [free_v],
+        critic_findings_in=[
+            CriticFinding(
+                criterion_index=0,
+                kind="low_confidence_indeterminate",
+                severity="warning",
+                rationale=finding_rationale,
+            )
+        ],
+        critic_iterations_in=1,
+    )
+
+    original_client = LLMMatcherStubClient(
+        make_llm_matcher_completion(
+            parsed=_LLMMatcherOutput(
+                verdict="indeterminate",
+                reason="no_data",
+                rationale="original pass found no signal",
+            )
+        )
+    )
+    original_branch: ScoringState = {
+        "patient": state["patient"],
+        "trial": state["trial"],
+        "as_of": state["as_of"],
+        "extraction": state.get("extraction"),
+        "profile": state["profile"],
+        "_criterion": criterion,
+        "_criterion_index": 0,
+    }
+    llm_match_node(original_branch, client=original_client, settings=_settings())
+
+    focused_client = LLMMatcherStubClient(
+        make_llm_matcher_completion(
+            parsed=_LLMMatcherOutput(
+                verdict="pass",
+                reason="ok",
+                rationale="focused pass considered the reviewer note",
+            )
+        )
+    )
+    revise_node(state, client=focused_client, settings=_settings())
+
+    original_captured = original_client.captured
+    focused_captured = focused_client.captured
+    assert original_captured is not None
+    assert focused_captured is not None
+
+    original_user = original_captured["messages"][1]["content"]
+    focused_user = focused_captured["messages"][1]["content"]
+
+    assert original_user != focused_user
+    assert "REVIEWER NOTE" not in original_user
+    assert focused_user.startswith("REVIEWER NOTE:\n")
+    assert finding_rationale in focused_user
+    assert "CRITERION TEXT" in focused_user
 
 
 # ---- defensive: out-of-range index ----

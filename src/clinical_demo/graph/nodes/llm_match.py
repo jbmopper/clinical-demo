@@ -193,7 +193,11 @@ def llm_match_node(
             OpenAI(api_key=settings.openai_api_key.get_secret_value()),
         )
 
-    user_message = _build_user_message(criterion, snapshot)
+    user_message = _build_user_message(
+        criterion,
+        snapshot,
+        reviewer_note=state.get("_reviewer_note"),
+    )
     messages = [
         {"role": "system", "content": LLM_MATCHER_SYSTEM_PROMPT},
         {"role": "user", "content": user_message},
@@ -303,13 +307,20 @@ def llm_match_node(
 # ---------- helpers ----------
 
 
-def _build_user_message(criterion: ExtractedCriterion, snapshot: _PatientSnapshot) -> str:
+def _build_user_message(
+    criterion: ExtractedCriterion,
+    snapshot: _PatientSnapshot,
+    *,
+    reviewer_note: str | None = None,
+) -> str:
     """Render the per-call prompt body.
 
     Format chosen for prompt-cache friendliness: the system prompt
     is identical across calls (cached), and only this user message
     varies. We use simple labelled fields rather than JSON so a
-    refusal-eval reading the trace can scan it at a glance."""
+    refusal-eval reading the trace can scan it at a glance. Critic
+    revisions may prepend a reviewer note; ordinary fan-out calls
+    leave it absent."""
     polarity_note = (
         "(this criterion is an exclusion; downstream code will invert)"
         if criterion.polarity == "exclusion"
@@ -319,7 +330,13 @@ def _build_user_message(criterion: ExtractedCriterion, snapshot: _PatientSnapsho
         " (criterion is negated; downstream code will invert)" if criterion.negated else ""
     )
 
+    reviewer_section = ""
+    stripped_reviewer_note = reviewer_note.strip() if reviewer_note else ""
+    if stripped_reviewer_note:
+        reviewer_section = f"REVIEWER NOTE:\n{stripped_reviewer_note}\n\n"
+
     return (
+        f"{reviewer_section}"
         f"CRITERION TEXT (verbatim): {criterion.source_text!r}\n"
         f"CRITERION POLARITY: {criterion.polarity} {polarity_note}{negation_note}\n"
         "\n"

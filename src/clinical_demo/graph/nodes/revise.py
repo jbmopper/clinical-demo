@@ -196,7 +196,12 @@ def _dispatch(
                 f"finding targeted a {criterion.kind} criterion; "
                 "deterministic matcher is replay-stable, no re-run.",
             )
-        focused = _focused_match_state(state, criterion, finding)
+        focused = _focused_match_state(
+            state,
+            criterion,
+            finding,
+            reviewer_note=finding.rationale,
+        )
         result = llm_match_node(focused, client=client, settings=settings)
         new_verdict = result["indexed_verdicts"][0][1]
         return (new_verdict, "re-ran LLM matcher with focused reviewer note")
@@ -224,15 +229,15 @@ def _focused_match_state(
     state: ScoringState,
     criterion: ExtractedCriterion,
     finding: CriticFinding,
+    *,
+    reviewer_note: str | None = None,
 ) -> ScoringState:
     """Build the per-branch state slice the matcher node expects.
 
-    Mirrors what `fan_out_criteria` puts on a `Send`. The
-    finding's rationale is stashed in a sentinel key the LLM
-    matcher could pick up — for v0 the matcher node ignores it
-    (the "REVIEWER NOTE" header isn't wired in yet), but the slot
-    exists and is exercised so we can light it up in v1 without a
-    state-shape change.
+    Mirrors what `fan_out_criteria` puts on a `Send`. Focused LLM
+    re-runs also carry the critic rationale as reviewer context;
+    the LLM matcher prepends that note to the user message so the
+    call is distinct from the original free-text match.
     """
     branch: ScoringState = {
         "patient": state["patient"],
@@ -243,6 +248,8 @@ def _focused_match_state(
         "_criterion": criterion,
         "_criterion_index": finding.criterion_index,
     }
+    if reviewer_note:
+        branch["_reviewer_note"] = reviewer_note
     return branch
 
 

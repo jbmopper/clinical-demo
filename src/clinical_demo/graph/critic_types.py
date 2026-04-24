@@ -100,8 +100,11 @@ CriticActionKind = Literal[
 
 Mapped 1:1 from `CriticFindingKind`:
   - low_confidence_indeterminate     → rerun_match_with_focus
-  - extraction_disagreement_with_text → rerun_extract_for_criterion
+  - extraction_disagreement_with_text → rerun_match_with_focus in v0
   - polarity_smell                    → flip_polarity_and_rematch
+
+`rerun_extract_for_criterion` is reserved for the future split where
+extraction-disagreement findings trigger a scoped extractor pass.
 """
 
 

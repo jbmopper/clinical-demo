@@ -138,6 +138,12 @@ class ScoringState(TypedDict, total=False):
     _criterion: ExtractedCriterion
     _criterion_index: int
 
+    # Optional per-branch reviewer context for critic-triggered LLM
+    # re-runs. Normal matcher fan-out leaves this absent; revise
+    # supplies it so the follow-up prompt differs from the original
+    # free-text match.
+    _reviewer_note: str
+
     # Final outputs written by the rollup node and read by the
     # public entry function (`score_pair_graph`). `final_verdicts`
     # is the order-restored, index-stripped sibling of the
