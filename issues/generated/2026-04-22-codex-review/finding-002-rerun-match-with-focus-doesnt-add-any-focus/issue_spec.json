@@ -1,0 +1,45 @@
+{
+  "acceptance_criteria": [
+    "The focused re-run path passes distinct reviewer context into the follow-up matcher call.",
+    "Regression coverage proves the focused prompt/context differs from the original free-text matcher invocation.",
+    "Implement the smallest correct fix for the behavior described in the review finding.",
+    "Add or update automated coverage that would fail before the fix and pass after it.",
+    "Keep unrelated behavior and interfaces unchanged unless the finding explicitly requires a contract change."
+  ],
+  "constraints": [
+    "Do not revert unrelated local changes in the worktree.",
+    "Start from the code around src/clinical_demo/graph/nodes/revise.py:199-245 and expand scope only when the fix truly needs it.",
+    "If comments or docstrings currently promise the broken behavior, update them so the implementation and docs agree."
+  ],
+  "finding_number": 2,
+  "issue_id": "finding-002-rerun-match-with-focus-doesnt-add-any-focus",
+  "labels": [
+    "review-finding",
+    "P1",
+    "graph"
+  ],
+  "priority": "P1",
+  "problem_statement": "The revise loop claims to prepend the critic rationale as a reviewer note, but\n`_focused_match_state()` never carries that rationale forward and\n`llm_match_node()` builds its prompt from only the criterion plus the patient\nsnapshot. For free-text findings this means the \"focused\" re-run is the same\nrequest as the original LLM match. With temperature pinned to `0.0`, the\n`low_confidence_indeterminate` and `extraction_disagreement_with_text`\nrevisions are effectively inert, so the critic loop cannot make real progress\non two of its three finding kinds.",
+  "raw_finding_markdown": "## Finding 2 (src/clinical_demo/graph/nodes/revise.py:199-245) [added]\n[P1] rerun_match_with_focus doesn't add any focus\n\nThe revise loop claims to prepend the critic rationale as a reviewer note, but\n`_focused_match_state()` never carries that rationale forward and\n`llm_match_node()` builds its prompt from only the criterion plus the patient\nsnapshot. For free-text findings this means the \"focused\" re-run is the same\nrequest as the original LLM match. With temperature pinned to `0.0`, the\n`low_confidence_indeterminate` and `extraction_disagreement_with_text`\nrevisions are effectively inert, so the critic loop cannot make real progress\non two of its three finding kinds.",
+  "related_tests": [
+    "tests/graph/test_revise_node.py",
+    "tests/graph/__init__.py",
+    "tests/graph/_fixtures.py",
+    "tests/graph/test_critic_loop_e2e.py",
+    "tests/graph/test_critic_node.py"
+  ],
+  "source_location": {
+    "end_line": 245,
+    "file": "src/clinical_demo/graph/nodes/revise.py",
+    "start_line": 199
+  },
+  "status": "added",
+  "summary": "The revise loop claims to prepend the critic rationale as a reviewer note, but\n`_focused_match_state()` never carries that rationale forward and\n`llm_match_node()` builds its prompt from only the criterion plus the patient\nsnapshot. For free-text findings this means the \"focused\" re-run is the same\nrequest as the original LLM match. With temperature pinned to `0.0`, the\n`low_confidence_indeterminate` and `extraction_disagreement_with_text`\nrevisions are effectively inert, so the critic loop cannot make real progress\non two of its three finding kinds.",
+  "title": "rerun_match_with_focus doesn't add any focus",
+  "verification_commands": [
+    "uv run pytest tests/graph/test_revise_node.py tests/graph/__init__.py tests/graph/_fixtures.py tests/graph/test_critic_loop_e2e.py tests/graph/test_critic_node.py",
+    "uv run pytest",
+    "uv run ruff check .",
+    "uv run mypy"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "acceptance_criteria": [
+    "The documented pause/resume flow works through the public entry point, not only through a precompiled graph object.",
+    "Regression coverage exercises a pause followed by a resume using the same external handle the finding calls out.",
+    "Implement the smallest correct fix for the behavior described in the review finding.",
+    "Add or update automated coverage that would fail before the fix and pass after it.",
+    "Keep unrelated behavior and interfaces unchanged unless the finding explicitly requires a contract change."
+  ],
+  "constraints": [
+    "Do not revert unrelated local changes in the worktree.",
+    "Start from the code around src/clinical_demo/graph/score_pair_graph.py:79-101 and expand scope only when the fix truly needs it.",
+    "If comments or docstrings currently promise the broken behavior, update them so the implementation and docs agree."
+  ],
+  "finding_number": 1,
+  "issue_id": "finding-001-public-hitl-entry-point-cannot-resume-a-paused-run",
+  "labels": [
+    "review-finding",
+    "P1",
+    "graph"
+  ],
+  "priority": "P1",
+  "problem_statement": "`score_pair_graph()` documents that callers can pause on `human_checkpoint=True`\nand resume with the same `thread_id`, but this wrapper always rebuilds a fresh\ngraph and invokes it from a brand-new `initial_state`. Because `build_graph()`\nallocates a new `InMemorySaver` per compilation, any checkpoint written on the\nfirst call is lost before the second one. The graph-level tests pass only\nbecause they keep the same compiled graph instance alive; callers that use the\npublic function cannot actually resume.",
+  "raw_finding_markdown": "## Finding 1 (src/clinical_demo/graph/score_pair_graph.py:79-101) [added]\n[P1] Public HITL entry point cannot resume a paused run\n\n`score_pair_graph()` documents that callers can pause on `human_checkpoint=True`\nand resume with the same `thread_id`, but this wrapper always rebuilds a fresh\ngraph and invokes it from a brand-new `initial_state`. Because `build_graph()`\nallocates a new `InMemorySaver` per compilation, any checkpoint written on the\nfirst call is lost before the second one. The graph-level tests pass only\nbecause they keep the same compiled graph instance alive; callers that use the\npublic function cannot actually resume.",
+  "related_tests": [
+    "tests/graph/test_score_pair_graph.py",
+    "tests/graph/__init__.py",
+    "tests/graph/_fixtures.py",
+    "tests/graph/test_critic_loop_e2e.py",
+    "tests/graph/test_critic_node.py"
+  ],
+  "source_location": {
+    "end_line": 101,
+    "file": "src/clinical_demo/graph/score_pair_graph.py",
+    "start_line": 79
+  },
+  "status": "added",
+  "summary": "`score_pair_graph()` documents that callers can pause on `human_checkpoint=True`\nand resume with the same `thread_id`, but this wrapper always rebuilds a fresh\ngraph and invokes it from a brand-new `initial_state`. Because `build_graph()`\nallocates a new `InMemorySaver` per compilation, any checkpoint written on the\nfirst call is lost before the second one. The graph-level tests pass only\nbecause they keep the same compiled graph instance alive; callers that use the\npublic function cannot actually resume.",
+  "title": "Public HITL entry point cannot resume a paused run",
+  "verification_commands": [
+    "uv run pytest tests/graph/test_score_pair_graph.py tests/graph/__init__.py tests/graph/_fixtures.py tests/graph/test_critic_loop_e2e.py tests/graph/test_critic_node.py",
+    "uv run pytest",
+    "uv run ruff check .",
+    "uv run mypy"
+  ]
+}

@@ -28,4 +28,8 @@ eval/runs.sqlite-*
 # the regression artifact for layer-1 (and later) eval runs (see
 # PLAN task 2.7 / decision D-68).
 
+issues/generated/**/dispatch/
+issues/generated/**/codex_home/
+issues/generated/**/.finder/
+
 __marimo__/

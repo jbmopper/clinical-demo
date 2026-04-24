@@ -1,0 +1,16 @@
+Review the current repository state in `$repo_root` against the review findings in `$source_path`.
+
+Your job is to output only the findings that are still unresolved in the current codebase.
+
+Rules
+1. If a finding is still valid, reproduce that finding block verbatim from the source findings.
+2. If a finding has been fixed, omit it entirely.
+3. Do not invent new findings.
+4. Preserve the original order of unresolved findings.
+5. Output only the unresolved findings markdown blocks and nothing else.
+6. If every finding is resolved, output nothing.
+
+Source Findings
+```markdown
+$source_markdown
+```

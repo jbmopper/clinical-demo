@@ -101,6 +101,7 @@ uv run marimo edit marimo/explore_eval_seed.py  # eval seed-set tour
 uv run python scripts/score_pair.py --help        # imperative orchestrator
 uv run python scripts/score_pair_graph.py --help  # LangGraph orchestrator
 uv run python scripts/eval.py --help              # eval harness CLI
+uv run python scripts/issue_agents.py --help      # review findings -> issue specs/prompts/agent runs
 uv run python scripts/serve.py                    # FastAPI demo server (127.0.0.1:8000)
 (cd web && npm run dev)                           # SvelteKit reviewer UI (127.0.0.1:5173)
 ```
@@ -449,6 +450,50 @@ Layer-specific reporting (deterministic accuracy in 2.4, Chia
 agreement in 2.5, judge calibration in 2.6) reads `runs.sqlite`
 directly when those tasks land — the schema is stable and
 queryable from day one.
+
+## Issue Agents
+
+Review findings can be materialized into machine-readable issue
+specs plus agent-ready prompts under `issues/generated/`.
+
+```bash
+# Write specs + prompts only
+uv run python scripts/issue_agents.py \
+    --source issues/review_findings/2026-04-22-codex-review.md \
+    --run-label 2026-04-22-codex-review \
+    --overwrite
+
+# Dispatch fixing agents and recurse until unresolved findings stabilize
+uv run python scripts/issue_agents.py \
+    --source issues/review_findings/2026-04-22-codex-review.md \
+    --run-label 2026-04-22-codex-review \
+    --dispatch-agents --overwrite
+```
+
+Dispatch inherits the current authenticated Codex home by default. Use
+`--codex-home-root <dir>` only if you explicitly want isolated per-issue
+homes.
+
+When `--dispatch-agents` is enabled, the CLI now re-execs itself in
+fresh Python processes until a refreshed unresolved-findings review
+matches the previous iteration's findings input. Each recursive round:
+
+1. materializes and optionally dispatches fixes for the current findings file
+2. re-reviews the current repo against that findings file
+3. keeps only the findings that still apply, verbatim, as the next input
+
+That means convergence is based on repo state, not just on stable
+spec/prompt artifacts. Use `--single-pass` to opt out,
+`--until-converged` to force the same behavior without dispatching,
+and `--max-iterations` to cap the loop.
+
+For idempotent reruns, use `--resume --skip-existing`; add
+`--retry-failed` to rerun only the issues whose prior dispatches
+failed while still dispatching any new or changed issues.
+
+The workflow logs operator-visible progress with stdlib `logging`
+and traces the scan/materialize/dispatch lifecycle through the
+existing Langfuse shim in `clinical_demo.observability`.
 
 ## HTTP API (Phase 2.9)
 

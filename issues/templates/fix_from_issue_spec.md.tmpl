@@ -1,0 +1,43 @@
+Fix the issue described in `$spec_path` inside `$repo_root`.
+
+Issue
+- id: `$issue_id`
+- priority: `$priority`
+- title: $title
+- location: `$location`
+
+Summary
+$summary
+
+Problem Statement
+$problem_statement
+
+Related Tests
+$related_tests
+
+Acceptance Criteria
+$acceptance_criteria
+
+Constraints
+$constraints
+
+Suggested Verification
+$verification_commands
+
+Raw Review Finding
+```markdown
+$raw_finding_markdown
+```
+
+Execution Notes
+1. Read the spec file plus the referenced source/test files before editing.
+2. Confirm the current bug or contract gap in code, tests, or docs.
+3. Implement the smallest correct fix.
+4. Add or update regression coverage.
+5. Run the most targeted verification first, then broader checks that are still reasonable.
+6. Summarize the code changes, the verification you ran, and any residual risk.
+
+Guardrails
+- Do not revert unrelated worktree changes.
+- Keep the scope tight to this issue unless the fix requires a small supporting refactor.
+- If the finding text and the current code disagree, trust the code you can observe and explain the mismatch in the final summary.
