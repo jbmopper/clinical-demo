@@ -1,54 +1,11 @@
 {
   "run_label": "2026-04-22-codex-review",
-  "created_at": "2026-04-23T21:32:57.853969Z",
+  "created_at": "2026-04-24T17:45:47.720964Z",
   "repo_root": "/Users/juliusmopper/Dev/clinical-demo",
-  "source_path": "issues/review_findings/2026-04-22-codex-review.md",
+  "source_path": "issues/generated/2026-04-22-codex-review/.finder/iteration-002-findings.md",
   "template_path": "issues/templates/fix_from_issue_spec.md.tmpl",
-  "source_sha256": "bbb8f5ba3f4f6b4acae5c91d3a6df6dc29d1dc3c35c231d1c85000557dea71f5",
+  "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "template_sha256": "e404fe2bdd689781d66583caf2cbfe1c726d16c982a86c21bb36267ec4897cab",
-  "convergence_sha256": "865bc38bbd5df127a23cb3be65c86c977d28f284e60ac8665b9f881ee96d6814",
-  "issues": [
-    {
-      "issue_id": "finding-001-public-hitl-entry-point-cannot-resume-a-paused-run",
-      "priority": "P1",
-      "title": "Public HITL entry point cannot resume a paused run",
-      "spec_path": "issues/generated/2026-04-22-codex-review/finding-001-public-hitl-entry-point-cannot-resume-a-paused-run/issue_spec.json",
-      "prompt_path": "issues/generated/2026-04-22-codex-review/finding-001-public-hitl-entry-point-cannot-resume-a-paused-run/agent_prompt.md",
-      "spec_sha256": "2f7836bad92ee56a757ddb0a5fae7896fda524e94badfdffaf3f57cc11aea90c",
-      "prompt_sha256": "8aa2248ea09a2162b535a1ab456f48b6681e243cdd90429bafc185b5bf0c413a",
-      "reused_existing": false,
-      "dispatch": {
-        "status": "not_requested",
-        "command": [],
-        "log_path": null,
-        "last_message_path": null,
-        "thread_id": null,
-        "return_code": null,
-        "error": null,
-        "reused_previous": false,
-        "skip_reason": null
-      }
-    },
-    {
-      "issue_id": "finding-002-rerun-match-with-focus-doesnt-add-any-focus",
-      "priority": "P1",
-      "title": "rerun_match_with_focus doesn't add any focus",
-      "spec_path": "issues/generated/2026-04-22-codex-review/finding-002-rerun-match-with-focus-doesnt-add-any-focus/issue_spec.json",
-      "prompt_path": "issues/generated/2026-04-22-codex-review/finding-002-rerun-match-with-focus-doesnt-add-any-focus/agent_prompt.md",
-      "spec_sha256": "a104abc73b13cd6c6716f4ea4b9a7d9f80eb1ec8be0929cadfbe7a6979e8ed34",
-      "prompt_sha256": "349a23d90d2d5c168e3ae44cc671db1f764da8363671dd37896f85e1bc96e19b",
-      "reused_existing": false,
-      "dispatch": {
-        "status": "not_requested",
-        "command": [],
-        "log_path": null,
-        "last_message_path": null,
-        "thread_id": null,
-        "return_code": null,
-        "error": null,
-        "reused_previous": false,
-        "skip_reason": null
-      }
-    }
-  ]
+  "convergence_sha256": "991df5de81849294072371580c4138d1d38e97490360d654cbb31a0e7ce7c926",
+  "issues": []
 }
