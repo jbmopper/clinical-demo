@@ -15,7 +15,10 @@ this graph.
 from __future__ import annotations
 
 from datetime import date
+from threading import Lock
 from typing import Any
+
+from langgraph.types import Command
 
 from ..domain.patient import Patient
 from ..domain.trial import Trial
@@ -28,6 +31,9 @@ from .graph import DEFAULT_MAX_CRITIC_ITERATIONS, build_graph
 from .nodes.critic import LLM_CRITIC_VERSION
 from .nodes.critic import _ClientLike as _CriticClient
 from .nodes.llm_match import LLM_MATCHER_VERSION, _ClientLike
+
+_HITL_GRAPHS: dict[str, Any] = {}
+_HITL_GRAPHS_LOCK = Lock()
 
 
 def score_pair_graph(
@@ -79,9 +85,10 @@ def score_pair_graph(
     human_checkpoint : bool
         When True, compile with a checkpointer + interrupt before
         finalize. Caller must also pass `thread_id`. v0 returns
-        the partial result on first invoke; resuming with
-        `Command(resume=...)` and the same thread_id completes the
-        run. Phase 2.8 builds a UI on this seam.
+        the reviewable result on first invoke; calling this entry
+        point again with `human_checkpoint=True` and the same
+        `thread_id` resumes the paused graph and completes the run.
+        Phase 2.8 builds a UI on this seam.
     thread_id : optional
         Required when `human_checkpoint=True`. Used by LangGraph's
         checkpointer to identify the conversation.
@@ -91,15 +98,42 @@ def score_pair_graph(
         LangGraph's own default (currently 25), which is plenty for
         our 2-iteration soft budget but cheap insurance.
     """
-    graph = build_graph(
-        extractor_client=extractor_client,
-        llm_matcher_client=llm_matcher_client,
-        critic_client=critic_client,
-        settings=settings,
-        critic_enabled=critic_enabled,
-        max_critic_iterations=max_critic_iterations,
-        human_checkpoint=human_checkpoint,
-    )
+    config: dict[str, Any] = {}
+    if recursion_limit is not None:
+        config["recursion_limit"] = recursion_limit
+    hitl_thread_id: str | None = None
+    if human_checkpoint:
+        if thread_id is None:
+            raise ValueError(
+                "human_checkpoint=True requires thread_id (LangGraph's "
+                "checkpointer needs a stable conversation id)."
+            )
+        hitl_thread_id = thread_id
+        config["configurable"] = {"thread_id": hitl_thread_id}
+
+        with _HITL_GRAPHS_LOCK:
+            graph = _HITL_GRAPHS.get(hitl_thread_id)
+            if graph is None:
+                graph = build_graph(
+                    extractor_client=extractor_client,
+                    llm_matcher_client=llm_matcher_client,
+                    critic_client=critic_client,
+                    settings=settings,
+                    critic_enabled=critic_enabled,
+                    max_critic_iterations=max_critic_iterations,
+                    human_checkpoint=True,
+                )
+                _HITL_GRAPHS[hitl_thread_id] = graph
+    else:
+        graph = build_graph(
+            extractor_client=extractor_client,
+            llm_matcher_client=llm_matcher_client,
+            critic_client=critic_client,
+            settings=settings,
+            critic_enabled=critic_enabled,
+            max_critic_iterations=max_critic_iterations,
+            human_checkpoint=False,
+        )
 
     initial_state: dict[str, Any] = {
         "patient": patient,
@@ -107,17 +141,6 @@ def score_pair_graph(
         "as_of": as_of,
         "extraction": extraction,
     }
-
-    config: dict[str, Any] = {}
-    if recursion_limit is not None:
-        config["recursion_limit"] = recursion_limit
-    if human_checkpoint:
-        if thread_id is None:
-            raise ValueError(
-                "human_checkpoint=True requires thread_id (LangGraph's "
-                "checkpointer needs a stable conversation id)."
-            )
-        config["configurable"] = {"thread_id": thread_id}
 
     # Wrap the graph invocation in a parent Langfuse span so the
     # extractor's `generation` and any per-criterion `llm_match`
@@ -148,7 +171,20 @@ def score_pair_graph(
         },
         metadata=parent_metadata,
     ) as span:
-        final_state = graph.invoke(initial_state, config=config or None)
+        graph_input: Any = initial_state
+        if human_checkpoint:
+            snapshot = graph.get_state(config)
+            if snapshot.next:
+                graph_input = Command(resume=True)
+
+        final_state = graph.invoke(graph_input, config=config or None)
+
+        if human_checkpoint and hitl_thread_id is not None:
+            snapshot = graph.get_state(config)
+            if not snapshot.next:
+                with _HITL_GRAPHS_LOCK:
+                    if _HITL_GRAPHS.get(hitl_thread_id) is graph:
+                        _HITL_GRAPHS.pop(hitl_thread_id, None)
 
         result = ScorePairResult(
             patient_id=patient.patient_id,

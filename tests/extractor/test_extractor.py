@@ -97,9 +97,11 @@ class _StubCompletions(_ChatCompletionsParser):
     def __init__(self, completion: ParsedChatCompletion[ExtractedCriteria]) -> None:
         self._completion = completion
         self.captured: dict[str, Any] | None = None
+        self.call_count = 0
 
     def parse(self, **kwargs: Any) -> ParsedChatCompletion[ExtractedCriteria]:
         self.captured = kwargs
+        self.call_count += 1
         return self._completion
 
 
@@ -116,6 +118,10 @@ class _StubClient(_ClientLike):
     @property
     def captured(self) -> dict[str, Any] | None:
         return self._completions.captured
+
+    @property
+    def call_count(self) -> int:
+        return self._completions.call_count
 
 
 def _settings(model: str = "gpt-4o-mini-2024-07-18") -> Settings:

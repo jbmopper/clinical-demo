@@ -7,6 +7,8 @@ matchers → join → rollup → public envelope. Two stub clients
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 from pydantic import SecretStr
 
@@ -178,6 +180,44 @@ def test_supplied_extraction_short_circuits_extractor_call() -> None:
         settings=_settings(),
     )
     assert result.summary.total_criteria == 1
+
+
+# ---------- human checkpoint ----------
+
+
+def test_public_human_checkpoint_resumes_with_same_thread_id() -> None:
+    """The public wrapper keeps the paused checkpoint reachable by
+    `thread_id`; the second call resumes instead of starting over."""
+    extractor = _extractor_stub([crit_age(minimum_years=18.0)])
+    thread_id = f"public-hitl-{uuid4()}"
+
+    first = score_pair_graph(
+        make_patient(),
+        make_trial(eligibility_text="Age >= 18."),
+        AS_OF,
+        extractor_client=extractor,
+        llm_matcher_client=_llm_matcher_stub(),
+        settings=_settings(),
+        human_checkpoint=True,
+        thread_id=thread_id,
+    )
+
+    assert first.eligibility == "pass"
+    assert extractor.call_count == 1
+
+    second = score_pair_graph(
+        make_patient(),
+        make_trial(eligibility_text="Age >= 18."),
+        AS_OF,
+        extractor_client=extractor,
+        llm_matcher_client=_llm_matcher_stub(),
+        settings=_settings(),
+        human_checkpoint=True,
+        thread_id=thread_id,
+    )
+
+    assert second.eligibility == "pass"
+    assert extractor.call_count == 1
 
 
 # ---------- rollup edge case ----------
