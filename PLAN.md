@@ -19,7 +19,67 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** CT.gov structured age/sex enrichment — the
+- **Last completed:** PLAN task 2.10 / **D-69 slice 4** —
+  matcher-side terminology binding wire-up. Three new pieces and
+  one switched dispatch:
+    - `Settings.binding_strategy` literal grew from `Literal["alias"]`
+      to `Literal["alias", "two_pass"]`. `alias` stays the default
+      so a fresh checkout reproduces the D-68 baseline byte-for-byte;
+      `two_pass` opts the matcher into the new path. `one_pass`
+      (LLM emits the binding inline) remains intentionally unwired
+      and rejected at config-validation time so eval runs can't
+      silently look terminology-backed when they aren't.
+    - New `clinical_demo.terminology.bindings` module: a small
+      surface-form -> (`VSACBinding(oid, system_filter)` |
+      `RxNormBinding(name, tty_filter)`) registry. v0 seeds *one*
+      binding (T2DM -> eCQM Diabetes OID
+      `2.16.840.1.113883.3.464.1003.103.12.1001`) so the wire-up
+      is end-to-end exercisable against the recorded VSAC fixture
+      we already ship. Lab and medication registries are
+      intentionally empty in v0; population is a separate commit
+      so each addition can be validated against its source
+      authority (VSAC search UI / RxNav probe scripts) without
+      the slice-4 plumbing diff being noisy.
+    - New `clinical_demo.terminology.resolver` module:
+      `TerminologyResolver` orchestrates registry -> cache ->
+      live VSAC / RxNorm -> soft-fail. Cache hit short-circuits
+      before any client is touched; cache miss with no
+      credentials returns `None` (a fresh checkout without
+      `UMLS_API_KEY` can opt into `two_pass` and still benefit
+      from any pre-warmed cache rows); fetch error is caught
+      and logged, returns `None`. Process-wide singleton via
+      `get_resolver()` so the matcher's hot path does not
+      re-instantiate clients per criterion.
+    - `matcher.concept_lookup.lookup_*` now dispatches on
+      `binding_strategy`. Under `two_pass`: try the resolver
+      first; on `None` fall back to the alias table; if both
+      miss, return `None` (the matcher's existing
+      `unmapped_concept` branch). Under `alias` (default): the
+      resolver factory is never called, so a fresh checkout
+      pays zero terminology overhead. Both modes preserve the
+      surface-form normalization parity that lets a string hit
+      both bridges identically.
+  Soft-fail discipline mirrors D-65/D-66: any terminology-side
+  failure (no key, network error, schema drift, upstream HTTP
+  500) degrades to the alias fallback, never crashes the run.
+  33 new tests: `tests/terminology/test_bindings.py` (11 — seed
+  binding integrity, normalization parity vs. `concept_lookup`,
+  empty-registry pinning, type discipline);
+  `tests/terminology/test_resolver.py` (14 — cache-hit /
+  cache-miss-with-fetch / cache-miss-no-client soft-fail / fetch
+  error / network error / system_filter + tty_filter cache-key
+  discrimination across both VSAC and RxNorm, plus surface-form
+  wrapper coverage and an unknown-binding-type defensive
+  branch); `tests/matcher/test_concept_lookup.py` (+7 — alias
+  mode trip-wires the resolver factory to prove it isn't
+  consulted; `two_pass` mode honors a resolver hit, falls back
+  to alias on resolver miss, and returns `None` only when both
+  bridges miss). Slice 5's eval rerun will be the first chance
+  to measure how much the seed binding (alone) closes the
+  baseline's `unmapped_concept` rate; expanding bindings beyond
+  T2DM is the natural next commit and will widen that delta
+  monotonically without needing further plumbing changes.
+  Previous: CT.gov structured age/sex enrichment — the
   second of the two §0 cleanups, landed serially after the
   Rule-13 prompt patch so each commit's eval delta is
   independently attributable in slice 5. New module
@@ -114,30 +174,34 @@
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** PLAN task 2.10 / D-69 **slice 4** — wire
-  `lookup_condition` / `lookup_lab` / `lookup_medication`
-  through the resolved bindings behind a `Settings.binding_strategy`
-  switch (extend the `BindingStrategy` literal beyond `alias`,
-  add a small trial-side bindings registry that maps surface
-  forms to either a VSAC OID or an RxNorm name lookup, route
-  through the cache so eval pairs share resolved bindings). The
-  hand-curated alias path stays as fallback during migration.
-  Optional **slice 3b** beforehand: UMLS search client for
-  source vocabularies not covered by a known VSAC value set;
-  defer until slice 4 reveals a real surface form that needs
-  it. Slice 5: re-run the eval harness against the D-68
-  baseline and report `unmapped_concept` rate, agreement /
-  coverage / binding precision deltas, latency, failure modes
-  with all three independent improvements (Rule 13, CT.gov
-  structured age/sex, terminology binding) attributable to
-  individual commits. Then PLAN tasks 2.5 (layer-2 Chia F1) and
-  2.6 (layer-3 LLM judge), then 3.x reliability + cost work and
-  the `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (109 source files; +2 from
-  the new `enrich.py` module + tests); `ruff check` + `ruff
-  format` clean; `pytest` 491 / 491 passing (455 → 491; +24
-  enrich unit tests, +2 score_pair integration tests, plus
-  parametrize fan-out). The reviewer UI is a thin
+- **Next:** populate the bindings registry beyond the T2DM seed
+  — top conditions / labs / medications from the D-68
+  INDETERMINACY.md ranking, each entry validated against its
+  source authority via `scripts/probe_vsac.py` /
+  `scripts/probe_rxnorm.py`. Likely shape: ~5 condition VSAC
+  OIDs (hypertension, hyperlipidemia, CKD, MI, obesity), ~5 lab
+  VSAC OIDs (HbA1c, eGFR, BMI, hemoglobin, platelets), ~5
+  medication RxNorm names (metformin, insulin, GLP-1 agonist
+  ingredient, SGLT2 inhibitor ingredient, statins). Each
+  entry's a one-line addition; the slice-4 plumbing is what
+  unlocks them. Optional **slice 3b** thereafter: UMLS search
+  client for source vocabularies not covered by a known VSAC
+  value set; defer until registry expansion reveals a real
+  surface form that needs it. Then **slice 5** — re-run the
+  eval harness against the D-68 baseline with `binding_strategy=
+  "two_pass"` and report `unmapped_concept` rate,
+  agreement / coverage / binding precision deltas, latency,
+  failure modes with four independent improvements (Rule 13,
+  CT.gov structured age/sex, terminology wire-up, registry
+  population) attributable to individual commits. Then PLAN
+  tasks 2.5 (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then
+  3.x reliability + cost work and the `juliusm.com` deploy.
+- **Gates at HEAD:** `mypy` clean (113 source files; +4 from
+  the new `bindings.py` + `resolver.py` modules + tests);
+  `ruff check` + `ruff format` clean; `pytest` 524 / 524
+  passing (491 → 524; +11 bindings, +14 resolver, +7
+  concept_lookup dispatch, +1 positive `binding_strategy=
+  "two_pass"` Settings test). The reviewer UI is a thin
   presentation layer over the API and is exercised manually;
   no JS test runner in this repo on purpose (per D-64 it's not
   the production artifact).

@@ -17,6 +17,18 @@ the OID/RxCUI emission for arms B and C.
 
 from __future__ import annotations
 
+from clinical_demo.terminology.bindings import (
+    CONDITION_BINDINGS,
+    ECQM_DIABETES_OID,
+    LAB_BINDINGS,
+    MEDICATION_BINDINGS,
+    Binding,
+    RxNormBinding,
+    VSACBinding,
+    lookup_condition_binding,
+    lookup_lab_binding,
+    lookup_medication_binding,
+)
 from clinical_demo.terminology.cache import (
     StoredRxNormConcepts,
     StoredVSACExpansion,
@@ -25,6 +37,10 @@ from clinical_demo.terminology.cache import (
     cache_path_for_vsac,
     rxnorm_envelope_fingerprint,
     vsac_envelope_fingerprint,
+)
+from clinical_demo.terminology.resolver import (
+    TerminologyResolver,
+    get_resolver,
 )
 from clinical_demo.terminology.rxnorm_client import (
     RxNormClient,
@@ -38,17 +54,29 @@ from clinical_demo.terminology.vsac_client import (
 )
 
 __all__ = [
+    "CONDITION_BINDINGS",
+    "ECQM_DIABETES_OID",
+    "LAB_BINDINGS",
+    "MEDICATION_BINDINGS",
+    "Binding",
+    "RxNormBinding",
     "RxNormClient",
     "RxNormConcepts",
     "RxNormError",
     "StoredRxNormConcepts",
     "StoredVSACExpansion",
     "TerminologyCache",
+    "TerminologyResolver",
+    "VSACBinding",
     "VSACClient",
     "VSACError",
     "VSACExpansion",
     "cache_path_for_rxnorm",
     "cache_path_for_vsac",
+    "get_resolver",
+    "lookup_condition_binding",
+    "lookup_lab_binding",
+    "lookup_medication_binding",
     "rxnorm_envelope_fingerprint",
     "vsac_envelope_fingerprint",
 ]

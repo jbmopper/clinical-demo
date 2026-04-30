@@ -244,8 +244,22 @@ def test_constructor_raises_when_no_key_available(
         VSACClient()
 
 
+def test_settings_accepts_two_pass_binding_strategy() -> None:
+    """Slice 4 wired the matcher-side terminology resolver behind
+    `two_pass`, so the literal must accept it. Pinned alongside the
+    `one_pass` reject test below so a future enum-shape change has
+    to update both ends explicitly."""
+    from clinical_demo.settings import Settings
+
+    s = Settings.model_validate({"binding_strategy": "two_pass"})
+    assert s.binding_strategy == "two_pass"
+
+
 def test_settings_rejects_unwired_binding_strategies() -> None:
-    """Only alias is accepted until API-backed binding is actually wired."""
+    """`one_pass` requires extractor-side schema changes that are
+    out of scope for D-69 slice 4; accepting it as config would
+    silently mark eval runs as terminology-backed when they are
+    not. Reject explicitly until the wire-up lands."""
     from clinical_demo.settings import Settings
 
     with pytest.raises(ValidationError, match="binding_strategy"):

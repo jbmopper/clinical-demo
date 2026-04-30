@@ -18,7 +18,23 @@ from typing import Literal
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BindingStrategy = Literal["alias"]
+BindingStrategy = Literal["alias", "two_pass"]
+"""Surface-form -> ConceptSet binding mode for the matcher.
+
+- `alias` (default): the hand-curated `concept_lookup.py` table is
+  the only resolver. Fully offline; no NLM dependency.
+- `two_pass`: try the trial-side bindings registry against
+  `TerminologyCache` (and live VSAC / RxNorm if cache misses and
+  credentials are available); fall back to the alias table on
+  registry miss or terminology-side soft-fail. The hand-curated
+  aliases stay in place during migration so a fresh checkout still
+  works without an NLM key.
+
+`one_pass` (LLM emits the binding inline at extraction time) is
+intentionally NOT in this enum -- it requires extractor schema
+changes that are out of scope for D-69 slice 4 and would silently
+look "wired" if accepted as config. The reject test in
+`tests/terminology/test_vsac_client.py` pins this."""
 
 
 class Settings(BaseSettings):
@@ -48,10 +64,14 @@ class Settings(BaseSettings):
     # account.
     umls_api_key: SecretStr | None = Field(default=None)
 
-    # Reserved for future terminology-binding experiments. Only
-    # `alias` is accepted today because the matcher still uses the
-    # hand-curated lookup path; accepting inactive strategy names
-    # would make eval runs look terminology-backed when they are not.
+    # Surface-form -> ConceptSet binding mode. See `BindingStrategy`
+    # docstring for the full menu. `alias` keeps the legacy
+    # hand-curated path; `two_pass` opts the matcher into the
+    # trial-side terminology bindings registry (D-69 slice 4) with
+    # alias fallback on registry miss / terminology-side soft-fail.
+    # Default stays `alias` because (a) the registry is intentionally
+    # small in v0 and (b) a fresh checkout without UMLS_API_KEY
+    # should still produce identical eval output to the D-68 baseline.
     binding_strategy: BindingStrategy = "alias"
 
     # Where the terminology cache (D-69 follow-on slice 2) writes
