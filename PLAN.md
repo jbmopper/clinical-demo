@@ -19,9 +19,43 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** Extractor compound-criterion routing patch
-  (one of the two §0 follow-up cleanups, sequenced before D-69
-  slice 4 so its eval delta is independently attributable). Adds
+- **Last completed:** CT.gov structured age/sex enrichment — the
+  second of the two §0 cleanups, landed serially after the
+  Rule-13 prompt patch so each commit's eval delta is
+  independently attributable in slice 5. New module
+  `clinical_demo.extractor.enrich` adds a deterministic
+  post-processor `enrich_with_structured_fields(extracted, trial)`:
+  if the extractor didn't emit a `kind="age"` row but
+  `trial.minimum_age` / `trial.maximum_age` parses, inject one
+  with the parsed bounds and a sentinel `source_text`
+  (`"[ct.gov structured field: ...]"`) so reviewers can tell
+  injected criteria from LLM-extracted ones at a glance; same
+  for `kind="sex"` against constraining `trial.sex` values
+  (MALE / FEMALE only — `ALL` is vacuous). Wired into the
+  imperative `score_pair` path and the `extract_node` graph
+  path, both of which now match against the enriched view.
+  Critically the enrichment runs *at use time*, not at
+  cache-write time — `scripts/extract_criteria.py` keeps
+  caching the LLM's raw output, so a CT.gov metadata refresh
+  doesn't invalidate the D-66 extractor cache and a second
+  `PROMPT_VERSION` bump in two commits is avoided. Chose
+  post-processing over a prompt-side hint deliberately: CT.gov
+  structured fields are canonical (the trial designer asserts
+  "minimum age = 18"), and routing canonical structured data
+  through an LLM for re-interpretation is silly and lossy.
+  Also: no-override discipline — if the extractor *did* emit
+  age or sex (the eligibility text may have nuanced the bound
+  with exception clauses), enrichment leaves it alone.
+  Estimated layer-1 coverage delta: 55% → ~95% on the D-68
+  baseline; the matcher's existing `_match_age` / `_match_sex`
+  branches consume the synthetic rows unchanged. 36 new tests
+  (24 in `tests/extractor/test_enrich.py` covering the parser,
+  the inject/no-inject branches, and identity-as-no-op
+  optimization; 2 in `tests/scoring/test_score_pair.py` pinning
+  the end-to-end wiring).
+  Previous: extractor compound-criterion routing patch (one of
+  the two §0 follow-up cleanups, sequenced before D-69 slice 4
+  so its eval delta is independently attributable). Adds
   Hard Rule 13 to the extractor system prompt — "Single-concept
   typed slots: condition_text / medication_text / measurement_text
   / event_text must each contain exactly ONE clinical concept;
@@ -80,14 +114,7 @@
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** the second of the two §0 cleanups — wire CT.gov
-  structured `minimumAge` / `maximumAge` / `sex` fields into the
-  extractor so trials whose age/sex live *only* in the CT.gov
-  structured fields (not the eligibility text) generate the
-  implicit `age` / `sex` criteria the matcher needs. Estimated
-  layer-1 coverage delta: 55% → ~95%. Sequenced before D-69
-  slice 4 for the same attribution-cleanliness reason as the
-  Rule-13 patch. Then PLAN task 2.10 / D-69 **slice 4** — wire
+- **Next:** PLAN task 2.10 / D-69 **slice 4** — wire
   `lookup_condition` / `lookup_lab` / `lookup_medication`
   through the resolved bindings behind a `Settings.binding_strategy`
   switch (extend the `BindingStrategy` literal beyond `alias`,
@@ -106,13 +133,14 @@
   individual commits. Then PLAN tasks 2.5 (layer-2 Chia F1) and
   2.6 (layer-3 LLM judge), then 3.x reliability + cost work and
   the `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (107 source files); `ruff
-  check` + `ruff format` clean; `pytest` 455 / 455 passing
-  (453 → 455; +2 prompt regression tests for Rule 13 and the
-  PROMPT_VERSION floor). The reviewer UI is a thin presentation
-  layer over the API and is exercised manually; no JS test
-  runner in this repo on purpose (per D-64 it's not the
-  production artifact).
+- **Gates at HEAD:** `mypy` clean (109 source files; +2 from
+  the new `enrich.py` module + tests); `ruff check` + `ruff
+  format` clean; `pytest` 491 / 491 passing (455 → 491; +24
+  enrich unit tests, +2 score_pair integration tests, plus
+  parametrize fan-out). The reviewer UI is a thin
+  presentation layer over the API and is exercised manually;
+  no JS test runner in this repo on purpose (per D-64 it's not
+  the production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
 ### Non-trivial open follow-ups
@@ -138,14 +166,6 @@ so they don't get lost between sessions.
   for VSAC/RxNorm/UMLS binding work; the current slice starts with
   VSAC expansion support and keeps runtime matcher behavior on the
   existing aliases until the resolver is wired and measured.
-- **Wire structured age/sex fields into extractor.** 34 of 76
-  layer-1 cells are "missing" because the extractor reads
-  eligibility text only, missing trials whose age/sex are
-  expressed *only* via the CT.gov structured fields. Pass those
-  into the prompt or post-process to inject an implicit `age`
-  criterion when missing. Estimated impact: layer-1 coverage
-  55% → ~95%.
-
 ### Maintenance contract for this section
 
 When closing out a task:

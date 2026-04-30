@@ -41,6 +41,7 @@ from pydantic import BaseModel
 
 from ..domain.patient import Patient
 from ..domain.trial import Trial
+from ..extractor.enrich import enrich_with_structured_fields
 from ..extractor.extractor import ExtractionResult, extract_criteria
 from ..extractor.schema import ExtractedCriteria, ExtractorRunMeta
 from ..matcher import MATCHER_VERSION, MatchVerdict, match_extracted
@@ -129,8 +130,18 @@ def score_pair(
         if extraction is None:
             extraction = extract_criteria(trial.eligibility_text)
 
+        # Backfill `kind="age"` / `kind="sex"` from the trial's
+        # CT.gov structured fields when the extractor didn't emit
+        # one (the eligibility text often doesn't restate them but
+        # the matcher can score against the patient profile
+        # trivially). Cheap, deterministic, leaves the cached
+        # `extraction` envelope untouched -- we only enrich the
+        # in-memory copy used for matching, so the D-66 extractor
+        # cache stays valid across CT.gov metadata updates.
+        enriched_criteria = enrich_with_structured_fields(extraction.extracted, trial)
+
         profile = PatientProfile(patient, as_of)
-        verdicts = match_extracted(extraction.extracted.criteria, profile, trial)
+        verdicts = match_extracted(enriched_criteria.criteria, profile, trial)
         summary = _summarize(verdicts)
         eligibility = _rollup(verdicts)
 
@@ -162,7 +173,11 @@ def score_pair(
         patient_id=patient.patient_id,
         nct_id=trial.nct_id,
         as_of=as_of,
-        extraction=extraction.extracted,
+        # Persist the enriched view so eval-side and reviewer-UI
+        # consumers see the same criterion set the matcher saw;
+        # provenance of injected rows is inspectable via
+        # `INJECTED_SOURCE_PREFIX` in `source_text`.
+        extraction=enriched_criteria,
         extraction_meta=extraction.meta,
         verdicts=verdicts,
         summary=summary,

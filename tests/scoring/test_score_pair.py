@@ -215,3 +215,73 @@ def test_score_pair_carries_top_level_identifiers() -> None:
     assert result.patient_id == patient.patient_id
     assert result.nct_id == "NCT99999999"
     assert result.as_of == AS_OF
+
+
+def test_score_pair_enriches_age_sex_from_ctgov_when_extractor_silent() -> None:
+    """End-to-end: when a trial has CT.gov-structured age and sex
+    bounds but the extractor produced neither (the eligibility text
+    didn't restate them), `score_pair` must inject `kind='age'` /
+    `kind='sex'` rows so the matcher actually scores those cells.
+    Pre-enrichment this returned an empty verdict list and rolled
+    up to vacuous `pass`; post-enrichment we expect two
+    matcher-evaluated rows.
+
+    This pins the layer-1 coverage lift mentioned in the D-68
+    INDETERMINACY.md follow-up: 55% -> ~95% by removing the
+    extractor's blind spot on structured fields."""
+    from clinical_demo.extractor.enrich import INJECTED_SOURCE_PREFIX
+
+    patient = make_patient(birth=date(1990, 1, 1), sex="female")
+    trial = make_trial(
+        minimum_age="18 Years",
+        maximum_age="65 Years",
+        sex="FEMALE",
+        eligibility_text="See structured fields.",
+    )
+    extraction = _make_extraction([])  # extractor saw nothing
+
+    result = score_pair(patient, trial, AS_OF, extraction=extraction)
+
+    # Two synthetic criteria injected and matched.
+    assert len(result.verdicts) == 2
+    kinds = {v.criterion.kind for v in result.verdicts}
+    assert kinds == {"age", "sex"}
+    # Both should pass: 36-year-old female meets 18-65 / FEMALE.
+    assert all(v.verdict == "pass" for v in result.verdicts)
+    # Persisted extraction reflects the enriched view (two rows
+    # both flagged with the CT.gov-injection sentinel) so eval
+    # consumers see the same criterion set as the matcher did.
+    assert len(result.extraction.criteria) == 2
+    assert all(c.source_text.startswith(INJECTED_SOURCE_PREFIX) for c in result.extraction.criteria)
+
+
+def test_score_pair_does_not_override_extracted_age_sex() -> None:
+    """If the extractor *did* emit `kind='age'` / `kind='sex'`,
+    enrichment leaves them alone -- the LLM saw the eligibility
+    text and may have nuanced bounds beyond what the structured
+    field carries. Verifies the no-override branch flows through
+    `score_pair` end-to-end."""
+    patient = make_patient(birth=date(1990, 1, 1), sex="female")
+    # Trial says 18-65 / FEMALE; extractor extracted 21-50 / ALL
+    # ish-equivalent. After enrichment, the extracted bound
+    # should win (no second age/sex row injected).
+    trial = make_trial(minimum_age="18 Years", maximum_age="65 Years", sex="FEMALE")
+    extraction = _make_extraction(
+        [
+            crit_age(minimum_years=21.0, maximum_years=50.0),
+        ]
+    )
+
+    result = score_pair(patient, trial, AS_OF, extraction=extraction)
+    age_rows = [c for c in result.extraction.criteria if c.kind == "age"]
+    assert len(age_rows) == 1
+    assert age_rows[0].age is not None
+    # Extractor's tighter bound preserved.
+    assert age_rows[0].age.minimum_years == 21.0
+    assert age_rows[0].age.maximum_years == 50.0
+    # Sex was missing from the extraction AND trial says FEMALE
+    # (constraining), so it *should* be injected.
+    sex_rows = [c for c in result.extraction.criteria if c.kind == "sex"]
+    assert len(sex_rows) == 1
+    assert sex_rows[0].sex is not None
+    assert sex_rows[0].sex.sex == "FEMALE"

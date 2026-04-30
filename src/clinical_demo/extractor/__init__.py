@@ -1,5 +1,6 @@
 """LLM-driven extraction of structured eligibility criteria from trial text."""
 
+from .enrich import INJECTED_SOURCE_PREFIX, enrich_with_structured_fields
 from .extractor import (
     ExtractionResult,
     ExtractorError,
@@ -30,6 +31,7 @@ from .schema import (
 
 __all__ = [
     "CRITERION_KINDS",
+    "INJECTED_SOURCE_PREFIX",
     "PROMPT_VERSION",
     "SYSTEM_PROMPT",
     "AgeCriterion",
@@ -53,5 +55,6 @@ __all__ = [
     "TemporalWindowCriterion",
     "ThresholdOperator",
     "build_messages",
+    "enrich_with_structured_fields",
     "extract_criteria",
 ]

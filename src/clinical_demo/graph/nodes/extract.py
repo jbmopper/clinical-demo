@@ -15,8 +15,10 @@ the channel.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
+from ...extractor.enrich import enrich_with_structured_fields
 from ...extractor.extractor import extract_criteria
 from ...profile import PatientProfile
 from ...settings import Settings
@@ -33,7 +35,17 @@ def extract_node(
 
     `client` and `settings` are kwargs the graph builder threads
     through via a closure / partial — they exist so tests can inject
-    a stub OpenAI client without monkey-patching globals."""
+    a stub OpenAI client without monkey-patching globals.
+
+    After resolving the extraction (whether freshly LLM-extracted or
+    pre-supplied from cache/replay), we layer on `kind="age"` /
+    `kind="sex"` rows from `Trial.minimum_age` / `Trial.maximum_age`
+    / `Trial.sex` when the extractor didn't emit them. This keeps
+    the matcher-visible criterion set complete without rebuilding
+    the cached extraction envelope on disk -- the D-66 extractor
+    cache stores the LLM's raw output, enrichment runs at use
+    time so a CT.gov metadata refresh doesn't invalidate the
+    cache."""
     extraction = state.get("extraction")
     if extraction is None:
         extraction = extract_criteria(
@@ -41,6 +53,10 @@ def extract_node(
             client=client,
             settings=settings,
         )
+
+    enriched = enrich_with_structured_fields(extraction.extracted, state["trial"])
+    if enriched is not extraction.extracted:
+        extraction = replace(extraction, extracted=enriched)
 
     profile = PatientProfile(state["patient"], state["as_of"])
 
