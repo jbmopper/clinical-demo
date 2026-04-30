@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -71,6 +72,9 @@ COHORT_MANIFEST = Path("data/curated/cohort_manifest.json")
 EXTRACTIONS_DIR = Path("data/curated/extractions")
 DEFAULT_CHIA_DIR = Path("data/raw/chia")
 CHIA_EXTRACTIONS_DIR = Path("data/curated/chia_extractions")
+DEFAULT_CHIA_SAMPLE_SEED = 20260430
+
+ChiaDocRef = tuple[str, str, ChiaDocument]
 
 
 # --------------------- loaders (shared with scripts/score_pair.py)
@@ -166,7 +170,7 @@ def _apply_binding_strategy(strategy: Literal["alias", "two_pass"] | None) -> No
 # --------------------- Chia layer-2 helpers
 
 
-def _iter_chia_documents(chia_dir: Path) -> Iterator[tuple[str, str, ChiaDocument]]:
+def _iter_chia_documents(chia_dir: Path) -> Iterator[ChiaDocRef]:
     for trial in iter_chia_trials(chia_dir):
         if trial.inclusion is not None:
             yield trial.nct_id, "inclusion", trial.inclusion
@@ -177,6 +181,51 @@ def _iter_chia_documents(chia_dir: Path) -> Iterator[tuple[str, str, ChiaDocumen
 def _chia_eval_text(document: ChiaDocument, *, section: str) -> str:
     header = "Inclusion Criteria" if section == "inclusion" else "Exclusion Criteria"
     return f"{header}:\n{document.source_text}"
+
+
+def _select_chia_documents(
+    docs: list[ChiaDocRef],
+    *,
+    sample_size: int | None,
+    sample_seed: int,
+) -> list[ChiaDocRef]:
+    """Optionally take a deterministic retained sample of Chia documents."""
+
+    if sample_size is None:
+        return docs
+    if sample_size < 1:
+        raise ValueError("--sample-size must be positive")
+    if sample_size >= len(docs):
+        return docs
+    selected = random.Random(sample_seed).sample(docs, sample_size)
+    return sorted(selected, key=lambda row: row[2].doc_id)
+
+
+def _write_chia_sample_manifest(
+    path: Path,
+    *,
+    chia_dir: Path,
+    docs: list[ChiaDocRef],
+    sample_size: int | None,
+    sample_seed: int,
+) -> None:
+    """Persist the exact Chia docs included in a retained-sample run."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "chia_dir": str(chia_dir),
+        "sample_size": sample_size,
+        "sample_seed": sample_seed,
+        "documents": [
+            {
+                "doc_id": document.doc_id,
+                "nct_id": nct_id,
+                "section": section,
+            }
+            for nct_id, section, document in docs
+        ],
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
 def _load_or_extract_chia_document(
@@ -307,6 +356,9 @@ def _cmd_chia(args: argparse.Namespace) -> int:
     if not chia_dir.exists():
         print(f"error: Chia directory {chia_dir} not found", file=sys.stderr)
         return 1
+    if args.limit is not None and args.sample_size is not None:
+        print("error: use either --limit or --sample-size, not both", file=sys.stderr)
+        return 1
 
     selected = set(args.doc_id) if args.doc_id else None
     docs = [
@@ -314,11 +366,26 @@ def _cmd_chia(args: argparse.Namespace) -> int:
         for nct_id, section, document in _iter_chia_documents(chia_dir)
         if selected is None or document.doc_id in selected
     ]
-    if args.limit is not None:
-        docs = docs[: args.limit]
+    try:
+        docs = _select_chia_documents(
+            docs[: args.limit] if args.limit is not None else docs,
+            sample_size=args.sample_size,
+            sample_seed=args.sample_seed,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if not docs:
         print("error: no Chia documents matched the filter", file=sys.stderr)
         return 1
+    if args.write_sample_manifest is not None:
+        _write_chia_sample_manifest(
+            Path(args.write_sample_manifest),
+            chia_dir=chia_dir,
+            docs=docs,
+            sample_size=args.sample_size,
+            sample_seed=args.sample_seed,
+        )
 
     cache_dir = Path(args.cache_dir)
     reports = []
@@ -487,6 +554,23 @@ def main(argv: list[str] | None = None) -> int:
     p_chia.add_argument("--chia-dir", default=str(DEFAULT_CHIA_DIR))
     p_chia.add_argument("--cache-dir", default=str(CHIA_EXTRACTIONS_DIR))
     p_chia.add_argument("--limit", type=int, default=None)
+    p_chia.add_argument(
+        "--sample-size",
+        type=int,
+        default=None,
+        help="Deterministically sample this many Chia docs before running.",
+    )
+    p_chia.add_argument(
+        "--sample-seed",
+        type=int,
+        default=DEFAULT_CHIA_SAMPLE_SEED,
+        help="Seed for --sample-size retained-sample selection.",
+    )
+    p_chia.add_argument(
+        "--write-sample-manifest",
+        default=None,
+        help="Optional path to persist the exact selected Chia document ids.",
+    )
     p_chia.add_argument(
         "--doc-id",
         action="append",
