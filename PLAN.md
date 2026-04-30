@@ -71,10 +71,10 @@
 - **Gates at HEAD:** `mypy` clean (105 src files; mypy's count
   is `src` + `tests` together — the prior ~107 was a rough
   pre-VSAC reading); `ruff check` + `ruff format` clean;
-  `pytest` 425 passing (408 → 425; +17 cache tests; the prior
-  PLAN's 393 was stale from before the D-69 slice 1 VSAC tests
-  landed), 1 pre-existing failure deselected (see follow-ups).
-  The reviewer UI is a thin presentation layer over the API and is
+  `pytest` 426 passing (408 → 425 with cache; +1 langfuse-test
+  isolation fix removed the prior deselect, so 426 / 426 with no
+  deselects). The reviewer UI is a thin presentation layer over
+  the API and is
   exercised manually; no JS test runner in this repo on purpose
   (per D-64 it's not the production artifact).
 - **Branch:** `main`, pushed to `origin`.
@@ -84,12 +84,6 @@
 These are *not* blockers for the next task; they're tracked here
 so they don't get lost between sessions.
 
-- **Pre-existing test failure**:
-  `tests/observability/test_langfuse_shim.py::test_settings_helper_detects_configuration`.
-  `monkeypatch.delenv` doesn't override values that
-  `pydantic-settings` has already loaded from `.env`. Fix is a
-  fixture that resets the cached settings or a `pytest-env`
-  config that ignores `.env` for that test. Predates Phase 2.
 - **Eval seed human-review pass** (Phase 1 task 1.6): ~856
   free-text criteria across 49 pairs are still
   `free_text_review_status="pending"`. End-to-end matcher evals
