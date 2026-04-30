@@ -33,10 +33,10 @@ def test_system_prompt_contains_load_bearing_phrases():
     bullets should survive accidental edits. We don't snapshot the
     whole text (too brittle), just the must-have phrases.
 
-    Rule 13 (single-concept typed slots) is on this list because it
-    is the load-bearing fix for the D-68 baseline's compound-clause
-    indeterminacy class; an accidental rewrite that drops it would
-    silently regress `unmapped_concept` rate."""
+    Rule 13 (single-concept typed slots) and Rule 14 (Chia mention
+    discipline) are on this list because they are load-bearing eval
+    fixes: the former protects matcher concept lookup; the latter
+    protects layer-2 mention F1."""
     must_haves = [
         "Faithful to the source",
         "Atomicity",
@@ -47,18 +47,19 @@ def test_system_prompt_contains_load_bearing_phrases():
         "Units verbatim",
         "Exactly one payload per row",
         "Single-concept typed slots",
+        "Chia-style mentions are expected",
+        "Mention boundary guidance",
+        "Scope: label the full span",
     ]
     for phrase in must_haves:
         assert phrase in SYSTEM_PROMPT, f"missing rule: {phrase!r}"
 
 
-def test_prompt_version_is_v0_2_or_later():
-    """Pinning the floor on PROMPT_VERSION because v0.2 is what
-    introduced the Rule 13 / compound-clause routing discipline; an
-    accidental revert to v0.1 would silently re-enable the
-    fake-structuring failure mode the cache key is supposed to
-    catch only at the schema layer."""
-    assert PROMPT_VERSION >= "extractor-v0.2"
+def test_prompt_version_is_v0_3_or_later():
+    """Pin the floor because v0.3 introduced the layer-2 Chia
+    mention-discipline pass. An accidental revert would silently reuse
+    weaker prompt behavior under a fresh-looking cache key."""
+    assert PROMPT_VERSION >= "extractor-v0.3"
 
 
 def test_few_shot_examples_include_a_compound_free_text_case():
@@ -84,6 +85,44 @@ def test_few_shot_examples_include_a_compound_free_text_case():
     assert found, (
         "Expected a few-shot example demonstrating a compound clause "
         "routed to free_text under Rule 13."
+    )
+
+
+def test_few_shot_examples_include_chia_context_mentions():
+    """Layer-2 Chia F1 depends on labels that are audit-only in the
+    matcher path. The prompt needs worked examples for these context
+    labels, not just prose."""
+    mentions = [
+        mention
+        for _user_text, gold in FEW_SHOT_EXAMPLES
+        for crit in gold.criteria
+        for mention in crit.mentions
+    ]
+    by_type = {mention.type for mention in mentions}
+    for expected in {
+        "Scope",
+        "Temporal",
+        "Reference_point",
+        "Multiplier",
+        "Observation",
+        "Negation",
+        "Qualifier",
+        "Procedure",
+        "Value",
+    }:
+        assert expected in by_type
+    assert any(
+        mention.type == "Value" and mention.text == "greater than or equal to 18 years"
+        for mention in mentions
+    )
+    assert any(
+        mention.type == "Temporal"
+        and mention.text == "within the first 48 hours following hospital admission"
+        for mention in mentions
+    )
+    assert any(
+        mention.type == "Scope" and mention.text == "General or neuraxial anesthesia"
+        for mention in mentions
     )
 
 

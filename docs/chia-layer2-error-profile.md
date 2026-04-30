@@ -111,3 +111,69 @@ Target the extractor prompt with explicit rules and few-shot examples for:
 After the prompt pass, rerun the same retained sample using
 `--sample-size 50 --sample-seed 20260430` and compare exact mention F1 deltas
 against the artifacts above.
+
+## Prompt Pass Result: extractor-v0.3
+
+Command:
+
+```bash
+uv run python scripts/eval.py chia \
+  --sample-size 50 \
+  --sample-seed 20260430 \
+  --write-sample-manifest eval/baselines/2026-04-30/layer2_chia_retained50_v03_manifest.json \
+  --output-json eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v03.json
+```
+
+Artifacts:
+
+- Manifest: `eval/baselines/2026-04-30/layer2_chia_retained50_v03_manifest.json`
+- Report: `eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v03.json`
+
+Result versus retained baseline:
+
+- Predicted mentions: 573 -> 675 (+102)
+- True positives: 257 -> 300 (+43)
+- Micro precision: 44.9% -> 44.4% (-0.4 pp)
+- Micro recall: 27.8% -> 32.5% (+4.7 pp)
+- Micro F1: 34.4% -> 37.5% (+3.2 pp)
+- Macro F1: 33.0% -> 35.4% (+2.4 pp)
+- Extraction cost: $0.0710
+- Runtime: ~9.5 minutes
+
+Largest improvements:
+
+- `Value`: F1 11.9% -> 35.5% (+23.6 pp), true positives 9 -> 27.
+- `Procedure`: F1 14.1% -> 32.7% (+18.6 pp), true positives 6 -> 17.
+- `Reference_point`: F1 14.8% -> 30.8% (+16.0 pp), true positives 2 -> 4.
+- `Temporal`: F1 4.4% -> 20.0% (+15.6 pp), true positives 2 -> 9.
+- `Measurement`: F1 43.0% -> 51.6% (+8.6 pp), true positives 23 -> 32.
+
+Regressions / new risks:
+
+- `Drug`: F1 60.5% -> 52.9% (-7.6 pp). Precision fell as the prompt
+  pushed the model toward more context-rich mention emission.
+- `Condition`: F1 58.9% -> 57.6% (-1.3 pp). Small regression; still the
+  strongest high-volume label.
+- `Observation`: predicted mentions jumped 6 -> 70, but true positives only
+  moved 0 -> 1. The prompt made the model over-label broad behavioral /
+  history phrases as `Observation`; this needs tightening before another
+  full retained run.
+- `Scope`: predicted 4 -> 13, but true positives only 0 -> 1. The label is no
+  longer absent, but exact-boundary recall remains effectively unsolved.
+
+Interpretation:
+
+The prompt-first strategy worked enough to justify staying on this path:
+exact mention F1 improved without a precision collapse, and the targeted
+labels (`Value`, `Temporal`, `Procedure`, `Reference_point`) moved in the
+right direction. It is not yet good enough to move on as "solved": `Scope`
+and `Observation` remain the core unresolved classes, and exact matching may
+be underrating partial span improvements.
+
+Recommended next step:
+
+Add a secondary overlap / containment diagnostic for layer 2 before another
+prompt revision. That will separate true misses from boundary-style misses
+and will show whether `Scope` is genuinely absent or mostly span-shifted.
+Then do a smaller v0.4 prompt tightening focused on `Observation` precision
+and `Scope` boundary examples, rerunning the same retained sample afterward.

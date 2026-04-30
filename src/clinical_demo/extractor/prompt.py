@@ -31,9 +31,16 @@ from .schema import (
     TemporalWindowCriterion,
 )
 
-PROMPT_VERSION = "extractor-v0.2"
+PROMPT_VERSION = "extractor-v0.3"
 """Bump on any meaningful change to SYSTEM_PROMPT or few-shot
 examples. Persisted alongside every extraction for eval attribution.
+
+v0.3: tightened Chia-style `mentions` discipline and added a fourth
+few-shot focused on Scope / Temporal / Value / Negation / Qualifier /
+Observation boundaries. Addresses the retained layer-2 Chia sample:
+flat mention F1 is weak mostly on labels already representable in
+`EntityMention`, so this is a prompt-only pass before any graph-schema
+expansion.
 
 v0.2: added Hard Rule 13 (single-concept typed slots) plus a third
 few-shot example demonstrating a compound clause routed to
@@ -105,6 +112,11 @@ silently loses to the matcher's concept lookup; routing to \
 Splitting (Rule 2) is only correct when each split clause is itself \
 a single concept (e.g. "HbA1c < 7% AND on metformin" splits into \
 two single-concept criteria).
+14. Chia-style mentions are expected whenever the source contains \
+visible entity spans. Do not leave `mentions` empty merely because a \
+typed payload already captured the main condition, drug, lab, age, or \
+sex. Mentions are audit/eval spans, not matcher payloads. They must \
+use exact source words, not paraphrases.
 
 Mentions (audit field)
 ----------------------
@@ -113,7 +125,38 @@ source_text. Use these labels (Chia-style): Condition, Drug, \
 Measurement, Value, Temporal, Qualifier, Negation, Mood, \
 Reference_point, Multiplier, Procedure, Observation, Device, Visit, \
 Person, Scope. Empty list is acceptable when every span has been \
-promoted into the typed payload.
+promoted into the typed payload and there are no additional source \
+spans worth citing.
+
+Mention boundary guidance
+-------------------------
+- Value: include comparator words and units when present: "greater \
+than or equal to 18 years", not just "18 years"; "less than or equal \
+to 2", not just "2".
+- Temporal: include the full time-window phrase and anchor when present: \
+"within the last 6 months", "for at least 30 days prior to study entry", \
+not only "6 months" or "30 days".
+- Reference_point: label anchors such as "Screening", "study entry", \
+"hospital admission", "last surgery", "radiation therapy", and \
+"study randomization" when they define timing or assessment context.
+- Negation: label cue tokens or cue phrases ("no", "without", "do not", \
+"the exception of"), not the entire negated clinical clause.
+- Qualifier: label severity, proof/status, exception, and modifier \
+words ("severe", "known", "stable", "prior", "cytologically proven", \
+"reviewed by transplant center") separately from the clinical noun.
+- Observation: use for clinical observations and history-style facts \
+that are not diseases themselves ("history of", "life expectancy", \
+"regular cigarette smoker", "alcohol abuse", "growth factor use").
+- Procedure: use for surgeries, scans, anesthesia, intubation, \
+ventilation, contraception procedure language, or radiation as a \
+treatment procedure.
+- Multiplier: label multiplicity / count / frequency phrases ("more \
+than one", ">2 doses per week", "1 mg or less") when they constrain \
+a drug, procedure, or event.
+- Scope: label the full span that joins alternatives or modifier \
+context ("general or neuraxial anesthesia", "b or c", "concomitant or \
+previous", "major impairment of renal or hepatic function"). Scope \
+is especially important for OR/AND lists and exception clauses.
 """
 
 # ---------- few-shot examples ----------
@@ -401,6 +444,212 @@ FEW_SHOT_EXAMPLES: list[tuple[str, ExtractedCriteria]] = [
                     "Both bullets routed to free_text under Rule 13: each "
                     "names multiple distinct concepts that cannot be "
                     "reduced to a single SNOMED/RxNorm code."
+                )
+            ),
+        ),
+    ),
+    (
+        # Chia-style mention-boundary example. These are mostly
+        # audit/eval spans, so the expected output deliberately labels
+        # context words (Scope, Temporal, Reference_point, Multiplier)
+        # even when the matcher payload is free_text or already has the
+        # core clinical concept.
+        "Inclusion Criteria:\n"
+        "* Age greater than or equal to 18 years\n"
+        "* ECOG performance status less than or equal to 2\n"
+        "* At least 4 weeks since last surgery or radiation therapy\n"
+        "\n"
+        "Exclusion Criteria:\n"
+        "* History of alcohol abuse or regular cigarette smoker without "
+        "stable abstinence\n"
+        "* General or neuraxial anesthesia within the first 48 hours "
+        "following hospital admission\n"
+        "* More than one primary chemotherapy regimen or >2 doses per week "
+        "of rescue medication\n",
+        ExtractedCriteria(
+            criteria=[
+                ExtractedCriterion(
+                    kind="age",
+                    polarity="inclusion",
+                    source_text="Age greater than or equal to 18 years",
+                    negated=False,
+                    mood="actual",
+                    age=AgeCriterion(minimum_years=18.0, maximum_years=None),
+                    sex=None,
+                    condition=None,
+                    medication=None,
+                    measurement=None,
+                    temporal_window=None,
+                    free_text=None,
+                    mentions=[
+                        EntityMention(text="Age", type="Person"),
+                        EntityMention(
+                            text="greater than or equal to 18 years",
+                            type="Value",
+                        ),
+                    ],
+                ),
+                ExtractedCriterion(
+                    kind="measurement_threshold",
+                    polarity="inclusion",
+                    source_text="ECOG performance status less than or equal to 2",
+                    negated=False,
+                    mood="actual",
+                    age=None,
+                    sex=None,
+                    condition=None,
+                    medication=None,
+                    measurement=MeasurementCriterion(
+                        measurement_text="ecog performance status",
+                        operator="<=",
+                        value=2.0,
+                        value_low=None,
+                        value_high=None,
+                        unit=None,
+                    ),
+                    temporal_window=None,
+                    free_text=None,
+                    mentions=[
+                        EntityMention(text="ECOG performance status", type="Measurement"),
+                        EntityMention(text="less than or equal to 2", type="Value"),
+                    ],
+                ),
+                ExtractedCriterion(
+                    kind="free_text",
+                    polarity="inclusion",
+                    source_text="At least 4 weeks since last surgery or radiation therapy",
+                    negated=False,
+                    mood="historical",
+                    age=None,
+                    sex=None,
+                    condition=None,
+                    medication=None,
+                    measurement=None,
+                    temporal_window=None,
+                    free_text=FreeTextCriterion(
+                        note=(
+                            "compound timing criterion: the time window applies "
+                            "to either surgery or radiation therapy; keep as "
+                            "free_text while preserving Chia-style mentions"
+                        )
+                    ),
+                    mentions=[
+                        EntityMention(
+                            text="At least 4 weeks since last surgery or radiation therapy",
+                            type="Temporal",
+                        ),
+                        EntityMention(text="last surgery", type="Reference_point"),
+                        EntityMention(text="radiation therapy", type="Reference_point"),
+                        EntityMention(text="surgery", type="Procedure"),
+                        EntityMention(text="radiation therapy", type="Procedure"),
+                        EntityMention(
+                            text="last surgery or radiation therapy",
+                            type="Scope",
+                        ),
+                    ],
+                ),
+                ExtractedCriterion(
+                    kind="free_text",
+                    polarity="exclusion",
+                    source_text=(
+                        "History of alcohol abuse or regular cigarette smoker without "
+                        "stable abstinence"
+                    ),
+                    negated=True,
+                    mood="historical",
+                    age=None,
+                    sex=None,
+                    condition=None,
+                    medication=None,
+                    measurement=None,
+                    temporal_window=None,
+                    free_text=FreeTextCriterion(
+                        note=("compound observation criterion with negation and qualifier context")
+                    ),
+                    mentions=[
+                        EntityMention(text="History of", type="Observation"),
+                        EntityMention(text="alcohol abuse", type="Observation"),
+                        EntityMention(text="regular cigarette smoker", type="Observation"),
+                        EntityMention(text="without", type="Negation"),
+                        EntityMention(text="stable abstinence", type="Qualifier"),
+                        EntityMention(
+                            text="alcohol abuse or regular cigarette smoker",
+                            type="Scope",
+                        ),
+                    ],
+                ),
+                ExtractedCriterion(
+                    kind="free_text",
+                    polarity="exclusion",
+                    source_text=(
+                        "General or neuraxial anesthesia within the first 48 hours "
+                        "following hospital admission"
+                    ),
+                    negated=False,
+                    mood="actual",
+                    age=None,
+                    sex=None,
+                    condition=None,
+                    medication=None,
+                    measurement=None,
+                    temporal_window=None,
+                    free_text=FreeTextCriterion(
+                        note=(
+                            "compound procedure alternatives with a temporal "
+                            "window and reference point"
+                        )
+                    ),
+                    mentions=[
+                        EntityMention(text="General anesthesia", type="Procedure"),
+                        EntityMention(text="neuraxial anesthesia", type="Procedure"),
+                        EntityMention(text="General or neuraxial anesthesia", type="Scope"),
+                        EntityMention(
+                            text="within the first 48 hours following hospital admission",
+                            type="Temporal",
+                        ),
+                        EntityMention(text="hospital admission", type="Reference_point"),
+                    ],
+                ),
+                ExtractedCriterion(
+                    kind="free_text",
+                    polarity="exclusion",
+                    source_text=(
+                        "More than one primary chemotherapy regimen or >2 doses per "
+                        "week of rescue medication"
+                    ),
+                    negated=False,
+                    mood="actual",
+                    age=None,
+                    sex=None,
+                    condition=None,
+                    medication=None,
+                    measurement=None,
+                    temporal_window=None,
+                    free_text=FreeTextCriterion(
+                        note=(
+                            "compound medication-count criterion; preserve both "
+                            "multipliers rather than forcing one typed drug row"
+                        )
+                    ),
+                    mentions=[
+                        EntityMention(text="More than one", type="Multiplier"),
+                        EntityMention(text="primary chemotherapy regimen", type="Drug"),
+                        EntityMention(text=">2 doses per week", type="Multiplier"),
+                        EntityMention(text="rescue medication", type="Drug"),
+                        EntityMention(
+                            text=(
+                                "primary chemotherapy regimen or >2 doses per week "
+                                "of rescue medication"
+                            ),
+                            type="Scope",
+                        ),
+                    ],
+                ),
+            ],
+            metadata=ExtractionMetadata(
+                notes=(
+                    "Few-shot emphasizes Chia-style mention boundaries for context "
+                    "labels; mentions are evaluated separately from matcher payloads."
                 )
             ),
         ),
