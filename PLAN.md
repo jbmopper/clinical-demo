@@ -19,7 +19,51 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** D-69 slice 4 follow-on — **VSAC bindings
+- **Last completed:** D-69 slice 4 hotfix — **T2DM binding
+  needed an explicit SNOMED filter, and the test suite needed
+  to be hermetic from `.env`**. A live smoke under
+  `BINDING_STRATEGY=two_pass` surfaced two latent issues. (1)
+  The slice-4 T2DM bindings shipped without a `system_filter`,
+  carried over from when the recorded fixture happened to be
+  SNOMED-only. The *live* eCQM Diabetes expansion now spans
+  SNOMED + ICD-10-CM, and `VSACClient` rejects multi-system
+  expansions without a filter (the matcher's ConceptSet is
+  single-system per query). The resolver was correctly
+  soft-failing and falling through to the alias table on every
+  T2DM lookup, defeating the entire wire-up. Added
+  `system_filter=SNOMED_SYSTEM` to all five T2DM surface forms
+  so live `two_pass` lookups now resolve to the 493-code SNOMED
+  Diabetes value set (vs. the alias table's 6-code curated
+  entry; meaningful recall delta worth measuring at slice-5).
+  (2) The legacy alias-table tests (`test_lookup_*_known_aliases`
+  and `test_lookup_medication_v0_returns_none_for_everything`)
+  silently inherited `binding_strategy` from the developer's
+  `.env`, so flipping the env var to `two_pass` started routing
+  those tests through the resolver -- producing different
+  ConceptSets (or non-None RxNorm hits) that broke object-
+  identity assertions. Added a tests-root `conftest.py` with a
+  session-wide autouse fixture that overrides
+  `Settings.model_config["env_file"]` to `None` for every test,
+  making the suite hermetic from `.env`. The fixture manages the
+  override directly (not via `monkeypatch`) so it doesn't shift
+  the fixture setup order in nested files (the langfuse shim's
+  `_reset_caches` autouse depends on monkeypatch having unwound
+  before its teardown reads `lru_cache.cache_clear` off a
+  swapped attribute -- requesting `monkeypatch` in the conftest
+  fixture would invert that order). Existing per-test
+  `two_pass_settings` opt-in still works because it monkeypatches
+  `get_settings` directly inside the matcher module. Also
+  updated `test_resolve_condition_uses_registry_then_cache` to
+  pre-warm the cache under `system_filter=SNOMED` because cache
+  keys include the filter (no-filter pre-warm misses after the
+  T2DM patch). One test docstring updated for the now-pinned
+  T2DM filter. Pytest stays at 547/547. Live smoke now resolves
+  T2DM (493 SNOMED codes), hypertension (14), HbA1c (5),
+  metformin (137); rosuvastatin correctly soft-fails (not in
+  registry, not in alias table). Cache populated under
+  `data/cache/terminology/` after the smoke; second-run latency
+  drops dramatically as expected.
+  Previous: D-69 slice 4 follow-on -- **VSAC bindings
   registry population (conditions + labs)**. Two canonical eCQM
   value-set OIDs added to the registry beyond the T2DM seed,
   each validated against live VSAC `$expand` and shipped with

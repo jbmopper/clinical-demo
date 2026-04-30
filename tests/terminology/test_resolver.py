@@ -288,9 +288,14 @@ def test_resolve_rxnorm_tty_filter_keys_cache_independently(tmp_path: Path) -> N
 def test_resolve_condition_uses_registry_then_cache(tmp_path: Path) -> None:
     """End-to-end: the registry's T2DM binding -> the resolver's
     cache hit -> a ConceptSet shaped exactly like the alias path
-    would have produced. This is the wire-up slice 4 exists for."""
+    would have produced. This is the wire-up slice 4 exists for.
+
+    Pre-warm under `system_filter=SNOMED` because the T2DM bindings
+    pin that filter (live VSAC expansion now spans SNOMED + ICD-10-CM
+    and `VSACClient` rejects multi-system without a filter). Cache
+    keys include the filter, so a None-filter pre-warm would miss."""
     cache = TerminologyCache(tmp_path)
-    expansion = _prewarm_vsac(cache)
+    expansion = _prewarm_vsac(cache, system_filter=SNOMED)
     resolver = TerminologyResolver(cache, vsac_client=None)
 
     for surface in ("type 2 diabetes", "T2DM", "  Type II Diabetes  "):

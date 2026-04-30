@@ -147,13 +147,21 @@ CONDITION_BINDINGS: dict[str, Binding] = {
     # T2DM -- canonical end-to-end test of the slice-4 wire-up.
     # All five surface forms point at the same eCQM Diabetes
     # value set, so a single cache row services every downstream
-    # call. The fixture (tests/fixtures/vsac/diabetes_expansion.json)
-    # ships in the repo for offline tests.
-    "type 2 diabetes": VSACBinding(oid=ECQM_DIABETES_OID),
-    "type 2 diabetes mellitus": VSACBinding(oid=ECQM_DIABETES_OID),
-    "t2dm": VSACBinding(oid=ECQM_DIABETES_OID),
-    "type ii diabetes": VSACBinding(oid=ECQM_DIABETES_OID),
-    "diabetes mellitus type 2": VSACBinding(oid=ECQM_DIABETES_OID),
+    # call. SNOMED filter is required: the slice-4 fixture happens
+    # to be single-system (recorded when VSAC returned SNOMED only),
+    # but the *live* expansion now spans SNOMED + ICD-10-CM, and
+    # `VSACClient` rejects multi-system expansions without a filter
+    # (the matcher's ConceptSet is single-system per query). Without
+    # the filter every fresh-checkout `two_pass` lookup of T2DM
+    # silently falls back to the alias table on cache miss, even
+    # though the OID is canonical and populated. Fixture path stays
+    # equivalent because the recorded SNOMED-only payload matches
+    # what live VSAC now returns *under the SNOMED filter*.
+    "type 2 diabetes": VSACBinding(oid=ECQM_DIABETES_OID, system_filter=SNOMED_SYSTEM),
+    "type 2 diabetes mellitus": VSACBinding(oid=ECQM_DIABETES_OID, system_filter=SNOMED_SYSTEM),
+    "t2dm": VSACBinding(oid=ECQM_DIABETES_OID, system_filter=SNOMED_SYSTEM),
+    "type ii diabetes": VSACBinding(oid=ECQM_DIABETES_OID, system_filter=SNOMED_SYSTEM),
+    "diabetes mellitus type 2": VSACBinding(oid=ECQM_DIABETES_OID, system_filter=SNOMED_SYSTEM),
     # Hypertension. CMS165's Essential Hypertension value set is
     # multi-system; binding a SNOMED filter at registry time
     # avoids the matcher having to choose at lookup time.

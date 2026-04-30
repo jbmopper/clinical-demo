@@ -85,7 +85,12 @@ def test_condition_bindings_seed_t2dm_to_ecqm_diabetes() -> None:
     """T2DM surface forms in the alias table also live here pointing
     at the eCQM Diabetes OID. A `two_pass` lookup against any of
     them resolves through the same cache row (one fetch / one
-    cache line covers all five surface forms)."""
+    cache line covers all five surface forms). SNOMED filter is
+    REQUIRED -- the live VSAC expansion spans SNOMED + ICD-10-CM
+    and `VSACClient` rejects multi-system expansions without a
+    filter. Drop the filter and every fresh-checkout `two_pass`
+    T2DM lookup silently falls back to the alias table on cache
+    miss, defeating the entire wire-up. Pin it explicitly."""
     expected_surfaces = {
         "type 2 diabetes",
         "type 2 diabetes mellitus",
@@ -98,9 +103,7 @@ def test_condition_bindings_seed_t2dm_to_ecqm_diabetes() -> None:
         binding = CONDITION_BINDINGS[surface]
         assert isinstance(binding, VSACBinding)
         assert binding.oid == ECQM_DIABETES_OID
-        # T2DM expansion is single-system already (SNOMED only in
-        # the recorded fixture); no system_filter needed.
-        assert binding.system_filter is None
+        assert binding.system_filter == SNOMED_SYSTEM
 
 
 @pytest.mark.parametrize(
