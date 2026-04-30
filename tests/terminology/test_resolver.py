@@ -315,7 +315,15 @@ def test_resolve_lab_returns_none_in_v0_empty_registry(tmp_path: Path) -> None:
     assert resolver.resolve_lab("hba1c") is None
 
 
-def test_resolve_medication_returns_none_in_v0_empty_registry(tmp_path: Path) -> None:
+def test_resolve_medication_soft_fails_when_cache_empty_and_no_client(
+    tmp_path: Path,
+) -> None:
+    """Registry hits ('metformin' is now in MEDICATION_BINDINGS),
+    but the cache is empty and no `rxnorm_client` is configured ->
+    soft-fail to `None`. The matcher's caller falls back to the
+    alias table (which is empty for meds today, so the verdict is
+    `unmapped_concept`); a fresh checkout without pre-warmed cache
+    rows reproduces the alias-only baseline behaviour exactly."""
     cache = TerminologyCache(tmp_path)
     resolver = TerminologyResolver(cache, rxnorm_client=None)
     assert resolver.resolve_medication("metformin") is None

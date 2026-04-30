@@ -126,10 +126,52 @@ LAB_BINDINGS: dict[str, Binding] = {}
 
 # ---- medications ----
 #
-# Empty in v0; the next commit populates metformin / insulin /
-# GLP-1 agonist / SGLT2 inhibitor per D-68's top-unmapped-meds
-# ranking, each as an `RxNormBinding`.
-MEDICATION_BINDINGS: dict[str, Binding] = {}
+# Each entry was validated against live RxNav `/drugs.json`
+# (scripts/probe_rxnorm.py) and confirmed to return non-empty
+# SCD/SBD code lists -- the exact TTYs Synthea uses for
+# `MedicationRequest.medicationCodeableConcept.coding`. A
+# representative Synthea medication code (the one a smoke test
+# would expect to land in the patient profile) is noted on each
+# row as a sanity check against future RxNav data drift.
+#
+# `tty_filter` is left `None` on every entry: the matcher is
+# coding-system-agnostic *within* RxNorm, so unioning SCD + SBD
+# gives the broadest hit rate without cross-system noise. If a
+# future Synthea update starts emitting IN/PIN codes (currently
+# it does not), the right move is to *add* those TTYs to the
+# union -- not to drop SCD/SBD.
+#
+# Class-level coverage ("any GLP-1 agonist", "any SGLT2 inhibitor")
+# is intentionally NOT modeled here. RxNav `/drugs.json?name=...`
+# is an ingredient/brand lookup, not a class lookup; representing
+# a class would mean either querying RxClass (separate API surface)
+# or unioning multiple ingredient bindings. Defer until trial
+# eligibility text actually demands class-level matching.
+MEDICATION_BINDINGS: dict[str, Binding] = {
+    # Diabetes first-line. Already has a recorded fixture under
+    # tests/fixtures/rxnorm/metformin_drugs.json so the resolver
+    # tests exercise the full parser path here.
+    "metformin": RxNormBinding(name="metformin"),
+    # Diabetes maintenance. RxNav also returns BPCK/GPCK pack
+    # codes for insulin, but Synthea encodes only individual
+    # SCD products ("insulin glargine 100 UNT/ML Injectable"),
+    # so unioning SCD/SBD is sufficient and tty_filter stays None.
+    "insulin": RxNormBinding(name="insulin"),
+    # Statins: Synthea cohort includes both atorvastatin
+    # (RxCUI 259255 in the curated bundle sample) and simvastatin
+    # (RxCUI 312961). Add both ingredient names so trial-side
+    # surface forms hit either Synthea drug.
+    "atorvastatin": RxNormBinding(name="atorvastatin"),
+    "simvastatin": RxNormBinding(name="simvastatin"),
+    # GLP-1 representative. Surface forms in trial eligibility
+    # text often say "GLP-1 agonist" (a class); we cover the
+    # canonical ingredient and let the alias-class gap surface
+    # in slice-5 eval as a known follow-up rather than papering
+    # over it with class hardcoding.
+    "semaglutide": RxNormBinding(name="semaglutide"),
+    # SGLT2 representative. Same class-vs-ingredient note.
+    "dapagliflozin": RxNormBinding(name="dapagliflozin"),
+}
 
 
 def lookup_condition_binding(surface: str) -> Binding | None:

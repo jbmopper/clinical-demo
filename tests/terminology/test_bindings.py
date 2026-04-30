@@ -20,6 +20,8 @@ The tests pin three properties:
 
 from __future__ import annotations
 
+import pytest
+
 from clinical_demo.terminology.bindings import (
     CONDITION_BINDINGS,
     ECQM_DIABETES_OID,
@@ -65,13 +67,65 @@ def test_condition_bindings_seed_t2dm_to_ecqm_diabetes() -> None:
         assert binding.oid == ECQM_DIABETES_OID
 
 
-def test_lab_and_medication_bindings_empty_in_v0() -> None:
-    """Slice 4 wires plumbing only; population is a follow-on per
-    the module docstring. If a future commit seeds these without
-    updating the docstring + tests, the change is reviewable
-    instead of silent."""
+def test_lab_bindings_empty_pending_vsac_population() -> None:
+    """Lab population lands in a separate commit (the VSAC half of
+    the registry expansion), so v0 of the medication-only commit
+    leaves this empty. Pin it so the next commit's diff is
+    reviewable rather than silent."""
     assert LAB_BINDINGS == {}
-    assert MEDICATION_BINDINGS == {}
+
+
+# ---- medications: validated against live RxNav probes ----
+#
+# Each entry below was probed via `scripts/probe_rxnorm.py` on the
+# real RxNav `/drugs.json` endpoint and confirmed to return a
+# non-empty SCD/SBD code list. The bindings are pinned by ingredient
+# name; `tty_filter=None` (the union of returned TTYs) matches
+# Synthea's coding model. See the bindings module docstring for the
+# class-vs-ingredient deferral note.
+
+
+@pytest.mark.parametrize(
+    "ingredient",
+    [
+        "metformin",
+        "insulin",
+        "atorvastatin",
+        "simvastatin",
+        "semaglutide",
+        "dapagliflozin",
+    ],
+)
+def test_medication_binding_is_rxnorm_with_no_tty_filter(ingredient: str) -> None:
+    """Every v0 medication entry is an `RxNormBinding` keyed by the
+    canonical ingredient name with no TTY filter. A future entry
+    that needs a tty_filter (e.g. an IN-only restriction) will
+    explicitly fail this test, surfacing the deviation for review
+    instead of letting it slip in silently."""
+    binding = MEDICATION_BINDINGS[ingredient]
+    assert isinstance(binding, RxNormBinding)
+    assert binding.name == ingredient
+    assert binding.tty_filter is None
+
+
+def test_medication_binding_lookup_via_helper() -> None:
+    """Lookup via the public helper (not direct dict access) hits
+    every populated entry under their canonical surface form. The
+    helper applies normalization (lowercase, whitespace), so this
+    also exercises the same code path the matcher will use."""
+    for ingredient in MEDICATION_BINDINGS:
+        b = lookup_medication_binding(ingredient.upper() + "  ")
+        assert isinstance(b, RxNormBinding)
+        assert b.name == ingredient
+
+
+def test_medication_binding_misses_unknown_drug() -> None:
+    """v0 covers a curated cardiometabolic set; anything outside
+    it returns None and dispatch falls back to the alias table
+    (which is itself empty for meds, ultimately yielding
+    `unmapped_concept`)."""
+    assert lookup_medication_binding("rosuvastatin") is None
+    assert lookup_medication_binding("warfarin") is None
 
 
 # ---------- normalization parity ----------
@@ -123,11 +177,6 @@ def test_lookup_lab_binding_misses_everything_in_v0() -> None:
     through to the alias table."""
     assert lookup_lab_binding("hba1c") is None
     assert lookup_lab_binding("egfr") is None
-
-
-def test_lookup_medication_binding_misses_everything_in_v0() -> None:
-    assert lookup_medication_binding("metformin") is None
-    assert lookup_medication_binding("insulin") is None
 
 
 # ---------- type discipline ----------

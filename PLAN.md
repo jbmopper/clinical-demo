@@ -19,7 +19,40 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** PLAN task 2.10 / **D-69 slice 4** —
+- **Last completed:** D-69 slice 4 follow-on — **medication
+  bindings registry population**. Six cardiometabolic ingredient
+  bindings added to `MEDICATION_BINDINGS`: metformin, insulin,
+  atorvastatin, simvastatin, semaglutide (GLP-1
+  representative), dapagliflozin (SGLT2 representative). Each
+  was validated against live RxNav `/drugs.json` via
+  `scripts/probe_rxnorm.py` and confirmed to return non-empty
+  SCD/SBD code lists -- the exact TTYs Synthea uses for
+  `MedicationRequest.medicationCodeableConcept.coding` (sample
+  cohort sweep showed atorvastatin RxCUI 259255 and simvastatin
+  312961 both as SCD codes, matching what `/drugs.json` returns
+  by default). `tty_filter=None` on every entry intentionally:
+  unioning SCD + SBD gives the broadest hit rate without
+  cross-system noise; future Synthea data drift toward IN/PIN
+  would mean *adding* TTYs, not dropping current ones.
+  Class-level coverage ("any GLP-1 agonist", "any SGLT2
+  inhibitor") is intentionally NOT modeled here -- RxNav
+  `/drugs.json?name=...` is an ingredient/brand lookup, not a
+  class lookup; representing a class would mean either querying
+  RxClass (separate API surface) or unioning multiple ingredient
+  bindings. Deferred until trial eligibility text actually
+  demands it; the slice-5 eval rerun will surface the gap as a
+  named follow-up rather than us papering over it with
+  hardcoded class lists. Two test changes: replaced the
+  `test_lab_and_medication_bindings_empty_in_v0` pin with a
+  per-entry parametrize that asserts each medication binding is
+  an `RxNormBinding` with no `tty_filter`, and a positive
+  lookup-via-helper test that exercises the same normalization
+  path the matcher uses; updated the resolver-side soft-fail
+  test docstring to match the new "registry hits but cache empty
+  + no client = None" reality. Bindings docstring + tests pin
+  the validation discipline so future expansions can't slip
+  past review.
+  Previous: PLAN task 2.10 / **D-69 slice 4** —
   matcher-side terminology binding wire-up. Three new pieces and
   one switched dispatch:
     - `Settings.binding_strategy` literal grew from `Literal["alias"]`
@@ -174,17 +207,27 @@
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** populate the bindings registry beyond the T2DM seed
-  — top conditions / labs / medications from the D-68
-  INDETERMINACY.md ranking, each entry validated against its
-  source authority via `scripts/probe_vsac.py` /
-  `scripts/probe_rxnorm.py`. Likely shape: ~5 condition VSAC
-  OIDs (hypertension, hyperlipidemia, CKD, MI, obesity), ~5 lab
-  VSAC OIDs (HbA1c, eGFR, BMI, hemoglobin, platelets), ~5
-  medication RxNorm names (metformin, insulin, GLP-1 agonist
-  ingredient, SGLT2 inhibitor ingredient, statins). Each
-  entry's a one-line addition; the slice-4 plumbing is what
-  unlocks them. Optional **slice 3b** thereafter: UMLS search
+- **Next:** populate the **VSAC** half of the registry — top
+  conditions and labs from the D-68 INDETERMINACY.md ranking,
+  each OID validated against the live VSAC `$expand` endpoint
+  via `scripts/probe_vsac.py` (UMLS_API_KEY required; available
+  in the local `.env`). Likely shape: ~4 condition value sets
+  (hypertension, hyperlipidemia, CKD, pregnancy) and ~2-3 lab
+  value sets (HbA1c LOINC, BMI LOINC if a clean OID exists, eGFR
+  LOINC). Each entry's a one-line addition + a recorded
+  `tests/fixtures/vsac/<name>_expansion.json` fixture so the
+  resolver tests stay offline-deterministic. Skip OIDs we can't
+  validate live -- hallucinated OIDs are exactly the failure
+  mode the diabetes-OID pinning test exists to prevent. After
+  that, optional **slice 3b** (UMLS search client; defer until
+  registry expansion reveals a real surface form that needs it),
+  then **slice 5** -- re-run the eval harness against the D-68
+  baseline with `binding_strategy="two_pass"` and report
+  `unmapped_concept` rate, agreement / coverage / binding
+  precision deltas, latency, failure modes with five
+  independent improvements (Rule 13, CT.gov structured age/sex,
+  terminology wire-up, T2DM seed, RxNorm medications, VSAC
+  registry expansion) attributable to individual commits. Optional **slice 3b** thereafter: UMLS search
   client for source vocabularies not covered by a known VSAC
   value set; defer until registry expansion reveals a real
   surface form that needs it. Then **slice 5** — re-run the
@@ -196,15 +239,14 @@
   population) attributable to individual commits. Then PLAN
   tasks 2.5 (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then
   3.x reliability + cost work and the `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (113 source files; +4 from
-  the new `bindings.py` + `resolver.py` modules + tests);
-  `ruff check` + `ruff format` clean; `pytest` 524 / 524
-  passing (491 → 524; +11 bindings, +14 resolver, +7
-  concept_lookup dispatch, +1 positive `binding_strategy=
-  "two_pass"` Settings test). The reviewer UI is a thin
-  presentation layer over the API and is exercised manually;
-  no JS test runner in this repo on purpose (per D-64 it's not
-  the production artifact).
+- **Gates at HEAD:** `mypy` clean (113 source files); `ruff
+  check` + `ruff format` clean; `pytest` 531 / 531 passing
+  (524 → 531; +6 medication entry parametrize + 1 lookup-helper
+  test, -1 stale empty-registry pin, +1 resolver soft-fail
+  docstring update). The reviewer UI is a thin presentation
+  layer over the API and is exercised manually; no JS test
+  runner in this repo on purpose (per D-64 it's not the
+  production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
 ### Non-trivial open follow-ups
