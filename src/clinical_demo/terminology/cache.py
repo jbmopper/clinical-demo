@@ -53,6 +53,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from clinical_demo.terminology.rxnorm_client import RxNormConcepts
 from clinical_demo.terminology.vsac_client import VSACExpansion
 
 log = logging.getLogger(__name__)
@@ -83,7 +84,38 @@ class StoredVSACExpansion(BaseModel):
     system_filter: str | None = None
 
 
+class StoredRxNormConcepts(BaseModel):
+    """On-disk envelope for one cached RxNorm `/drugs.json` result.
+
+    Mirrors `StoredVSACExpansion`: the in-memory `RxNormConcepts`
+    is what the matcher consumes; this envelope adds disk-only
+    provenance (cached_at, the tty_filter argument used at fetch
+    time) without polluting the matcher's import surface.
+
+    `tty_filter` is recorded as a sorted list rather than a frozenset
+    so the on-disk JSON is canonical (sorted, indented) and human-
+    diffable when re-recording fixtures.
+    """
+
+    concepts: RxNormConcepts
+    cached_at: str
+    tty_filter: list[str] | None = None
+
+
 # ---------- cache key helpers ----------
+
+
+def _envelope_fingerprint(model: type[BaseModel]) -> str:
+    """8-char SHA-256 over a Pydantic model's canonical JSON schema.
+
+    Helper shared by the per-source fingerprint accessors. Truncated
+    to 8 hex chars (32 bits) because the only consumer is the cache
+    filename and collision risk between two manual envelope edits is
+    negligible.
+    """
+    schema = model.model_json_schema()
+    canonical = json.dumps(schema, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()[:8]
 
 
 @lru_cache(maxsize=1)
@@ -93,13 +125,20 @@ def vsac_envelope_fingerprint() -> str:
     Mirrors `scoring.cache.schema_fingerprint`: any field-level
     addition / removal / retype on the envelope produces a different
     fingerprint, which produces a different cache filename, which
-    auto-orphans every prior cache entry. Truncated to 8 hex chars
-    (32 bits) because the only consumer is the filename and
-    collision risk between two manual envelope edits is negligible.
+    auto-orphans every prior cache entry.
     """
-    schema = StoredVSACExpansion.model_json_schema()
-    canonical = json.dumps(schema, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(canonical).hexdigest()[:8]
+    return _envelope_fingerprint(StoredVSACExpansion)
+
+
+@lru_cache(maxsize=1)
+def rxnorm_envelope_fingerprint() -> str:
+    """8-char hex digest of the `StoredRxNormConcepts` JSON schema.
+
+    Same auto-invalidation discipline as `vsac_envelope_fingerprint`.
+    Independent fingerprint per source so an RxNorm envelope rev
+    does not invalidate VSAC cache entries (and vice versa).
+    """
+    return _envelope_fingerprint(StoredRxNormConcepts)
 
 
 def _filter_tag(system_filter: str | None) -> str:
@@ -155,6 +194,56 @@ def cache_path_for_vsac(
     safe_oid = _sanitize_oid(oid)
     fp = schema_fp or vsac_envelope_fingerprint()
     return root / f"vsac.{safe_oid}.{_filter_tag(system_filter)}.{fp}.json"
+
+
+def _rxnorm_query_tag(name: str) -> str:
+    """Filename-safe tag for an RxNorm drug-name query.
+
+    The query string can contain spaces, slashes, brackets, and
+    other characters that would either look ugly or break on some
+    filesystems (e.g. "metformin/glipizide", "acetaminophen [Tylenol]").
+    A short hex digest sidesteps the whole encoding question without
+    losing key uniqueness; the original query string is recorded
+    inside the envelope for human inspection.
+    """
+    digest = hashlib.sha256(name.lower().strip().encode("utf-8")).hexdigest()
+    return digest[:12]
+
+
+def _rxnorm_filter_tag(tty_filter: frozenset[str] | None) -> str:
+    """Stable tag for an RxNorm `tty_filter` argument.
+
+    `None` -> `"any"`. A populated filter is hashed over the sorted
+    member list so {"IN", "PIN"} and {"PIN", "IN"} produce the
+    same tag. Keeping the tag short means the filename stays
+    readable; the full filter list is recorded inside the envelope.
+    """
+    if tty_filter is None:
+        return "any"
+    canonical = ",".join(sorted(tty_filter))
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return digest[:8]
+
+
+def cache_path_for_rxnorm(
+    name: str,
+    root: Path,
+    *,
+    tty_filter: frozenset[str] | None = None,
+    schema_fp: str | None = None,
+) -> Path:
+    """Resolve the cache filename for a (name, tty_filter, envelope) tuple.
+
+    Filename pattern: `rxnorm.<query_tag>.<filter_tag>.<schema_fp>.json`.
+
+    The query is hashed (rather than written verbatim) because real
+    RxNorm queries contain characters that aren't filename-safe across
+    every OS; the original string is recorded inside the envelope.
+    Same `vsac.` / `rxnorm.` namespacing, same auto-invalidating
+    `<schema_fp>` discipline.
+    """
+    fp = schema_fp or rxnorm_envelope_fingerprint()
+    return root / (f"rxnorm.{_rxnorm_query_tag(name)}.{_rxnorm_filter_tag(tty_filter)}.{fp}.json")
 
 
 # ---------- main entry point ----------
@@ -258,10 +347,72 @@ class TerminologyCache:
         self.put_vsac_expansion(fresh, system_filter=system_filter)
         return fresh
 
+    # ----- RxNorm -----
+
+    def get_rxnorm_concepts(
+        self, name: str, *, tty_filter: frozenset[str] | None = None
+    ) -> RxNormConcepts | None:
+        """Return the cached RxNorm result for (name, tty_filter), or None on miss."""
+        path = cache_path_for_rxnorm(name, self._root, tty_filter=tty_filter)
+        if not path.exists():
+            return None
+        stored = StoredRxNormConcepts.model_validate_json(path.read_text())
+        return stored.concepts
+
+    def put_rxnorm_concepts(
+        self,
+        concepts: RxNormConcepts,
+        *,
+        tty_filter: frozenset[str] | None = None,
+    ) -> Path:
+        """Persist an `RxNormConcepts` to the cache and return the path.
+
+        Same atomic write + lazy root creation discipline as
+        `put_vsac_expansion`. The query string the result was
+        produced from is taken from `concepts.query`; the
+        `tty_filter` argument is recorded as a sorted list inside
+        the envelope so the file is self-describing.
+        """
+        path = cache_path_for_rxnorm(concepts.query, self._root, tty_filter=tty_filter)
+        self._root.mkdir(parents=True, exist_ok=True)
+        envelope = StoredRxNormConcepts(
+            concepts=concepts,
+            cached_at=datetime.now(UTC).isoformat(),
+            tty_filter=sorted(tty_filter) if tty_filter is not None else None,
+        )
+        tmp = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+        tmp.write_text(envelope.model_dump_json(indent=2))
+        os.replace(tmp, path)
+        return path
+
+    def rxnorm_concepts_or_fetch(
+        self,
+        name: str,
+        *,
+        fetch: Callable[[], RxNormConcepts],
+        tty_filter: frozenset[str] | None = None,
+    ) -> RxNormConcepts:
+        """Get a cached RxNorm result or fetch + cache it on miss.
+
+        Mirrors `vsac_expansion_or_fetch`: closure-shaped fetcher
+        keeps the cache decoupled from `RxNormClient`, fetcher
+        invoked exactly once per miss, fetcher exceptions
+        propagate unchanged.
+        """
+        cached = self.get_rxnorm_concepts(name, tty_filter=tty_filter)
+        if cached is not None:
+            return cached
+        fresh = fetch()
+        self.put_rxnorm_concepts(fresh, tty_filter=tty_filter)
+        return fresh
+
 
 __all__ = [
+    "StoredRxNormConcepts",
     "StoredVSACExpansion",
     "TerminologyCache",
+    "cache_path_for_rxnorm",
     "cache_path_for_vsac",
+    "rxnorm_envelope_fingerprint",
     "vsac_envelope_fingerprint",
 ]

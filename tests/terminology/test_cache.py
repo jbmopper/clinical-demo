@@ -27,12 +27,17 @@ from pydantic import BaseModel, ValidationError
 
 from clinical_demo.profile import ConceptSet
 from clinical_demo.terminology import (
+    RxNormConcepts,
+    StoredRxNormConcepts,
     StoredVSACExpansion,
     TerminologyCache,
     VSACExpansion,
+    cache_path_for_rxnorm,
     cache_path_for_vsac,
+    rxnorm_envelope_fingerprint,
     vsac_envelope_fingerprint,
 )
+from clinical_demo.terminology.rxnorm_client import RXNORM_SYSTEM_URI
 
 DIABETES_OID = "2.16.840.1.113883.3.464.1003.103.12.1001"
 SNOMED = "http://snomed.info/sct"
@@ -49,6 +54,23 @@ def _make_expansion(
             system=SNOMED,
             codes=codes if codes is not None else frozenset({"44054006", "46635009"}),
         ),
+    )
+
+
+def _make_rxnorm(
+    *,
+    query: str = "metformin",
+    codes: frozenset[str] | None = None,
+    term_types: frozenset[str] | None = None,
+) -> RxNormConcepts:
+    return RxNormConcepts(
+        query=query,
+        concept_set=ConceptSet(
+            name=query,
+            system=RXNORM_SYSTEM_URI,
+            codes=codes if codes is not None else frozenset({"6809", "236211"}),
+        ),
+        term_types=term_types if term_types is not None else frozenset({"IN", "PIN"}),
     )
 
 
@@ -314,13 +336,219 @@ def test_settings_terminology_cache_dir_overridable_via_env(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Env override is what tests and CI use to redirect the cache
-    away from the working tree."""
+    away from the working tree.
+
+    Uses the same `model_config["env_file"] = None` monkey-patch
+    that `tests/observability/test_langfuse_shim.py` uses to bypass
+    a developer-machine `.env` shadowing the patched env var.
+    Avoids the `Settings(_env_file=None)` form because that kwarg
+    is a runtime feature of pydantic-settings not surfaced in the
+    type stubs, which makes mypy disagree with itself depending on
+    file scope (full-codebase vs pre-commit's narrow scope)."""
     from clinical_demo.settings import Settings
 
     custom = tmp_path / "elsewhere"
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
     monkeypatch.setenv("TERMINOLOGY_CACHE_DIR", str(custom))
-    # Bypass the .env file so a real .env on disk doesn't shadow
-    # the monkey-patched env var.
-    s = Settings(_env_file=None)
+    s = Settings()
 
     assert s.terminology_cache_dir == custom
+
+
+# ============================================================
+# RxNorm cache (mirrors the VSAC tests above; the parallel
+# coverage is intentional -- we want the same auto-invalidation,
+# atomicity, and key-discrimination guarantees on both sources).
+# ============================================================
+
+
+# ---------- round-trip ----------
+
+
+def test_put_then_get_round_trips_rxnorm(tmp_path: Path) -> None:
+    """Round-trip preserves the frozenset of RxCUIs and the
+    term_types set; both are matcher-visible state."""
+    cache = TerminologyCache(tmp_path)
+    original = _make_rxnorm()
+
+    cache.put_rxnorm_concepts(original)
+    loaded = cache.get_rxnorm_concepts("metformin")
+
+    assert loaded is not None
+    assert loaded == original
+    assert loaded.concept_set.codes == original.concept_set.codes
+    assert loaded.term_types == original.term_types
+    assert isinstance(loaded.concept_set.codes, frozenset)
+    assert isinstance(loaded.term_types, frozenset)
+
+
+def test_get_rxnorm_returns_none_on_miss(tmp_path: Path) -> None:
+    cache = TerminologyCache(tmp_path)
+    assert cache.get_rxnorm_concepts("metformin") is None
+
+
+# ---------- cache key ----------
+
+
+def test_rxnorm_cache_path_pattern_pins_filename_segments(tmp_path: Path) -> None:
+    """Filename pattern is `rxnorm.<query_tag>.<filter_tag>.<schema_fp>.json`.
+
+    Pinned because (a) downstream tooling reads the segments and
+    (b) the namespace prefix is what keeps RxNorm and VSAC entries
+    from colliding in the same cache root."""
+    p = cache_path_for_rxnorm(
+        "metformin",
+        tmp_path,
+        tty_filter=None,
+        schema_fp="abcd1234",
+    )
+    assert p.parent == tmp_path
+    assert p.name.startswith("rxnorm.")
+    assert p.name.endswith(".any.abcd1234.json")
+
+
+def test_rxnorm_query_tag_is_case_insensitive(tmp_path: Path) -> None:
+    """The matcher will see the same drug under multiple casings
+    ("Metformin", "metformin", "METFORMIN"); they must all hit the
+    same cache row, otherwise re-running an eval after a casing
+    normalization upstream would silently re-fetch."""
+    a = cache_path_for_rxnorm("metformin", tmp_path)
+    b = cache_path_for_rxnorm("Metformin", tmp_path)
+    c = cache_path_for_rxnorm("METFORMIN", tmp_path)
+    assert a == b == c
+
+
+def test_rxnorm_query_tag_strips_surrounding_whitespace(tmp_path: Path) -> None:
+    """LLM-extracted surface forms occasionally come padded with
+    whitespace; treat as the same query."""
+    a = cache_path_for_rxnorm("metformin", tmp_path)
+    b = cache_path_for_rxnorm("  metformin  ", tmp_path)
+    assert a == b
+
+
+def test_rxnorm_query_tag_distinguishes_distinct_queries(tmp_path: Path) -> None:
+    """Different drug names must hash to different filenames so two
+    cache entries don't collide."""
+    metformin = cache_path_for_rxnorm("metformin", tmp_path)
+    glucophage = cache_path_for_rxnorm("Glucophage", tmp_path)
+    insulin = cache_path_for_rxnorm("insulin", tmp_path)
+    assert len({metformin, glucophage, insulin}) == 3
+
+
+def test_rxnorm_filter_changes_filename(tmp_path: Path) -> None:
+    """tty_filter is part of the cache key; same drug name with
+    different filters must cache separately."""
+    no_filter = cache_path_for_rxnorm("metformin", tmp_path)
+    in_only = cache_path_for_rxnorm("metformin", tmp_path, tty_filter=frozenset({"IN"}))
+    in_pin = cache_path_for_rxnorm("metformin", tmp_path, tty_filter=frozenset({"IN", "PIN"}))
+    assert no_filter != in_only
+    assert in_only != in_pin
+
+
+def test_rxnorm_filter_tag_is_order_independent(tmp_path: Path) -> None:
+    """frozenset({A, B}) and frozenset({B, A}) are the same set;
+    they must produce the same filename."""
+    a = cache_path_for_rxnorm("metformin", tmp_path, tty_filter=frozenset({"IN", "PIN"}))
+    b = cache_path_for_rxnorm("metformin", tmp_path, tty_filter=frozenset({"PIN", "IN"}))
+    assert a == b
+
+
+def test_rxnorm_filtered_and_unfiltered_round_trips_dont_collide(tmp_path: Path) -> None:
+    """End-to-end check that the filter-key behavior holds when
+    going through the public put/get methods."""
+    cache = TerminologyCache(tmp_path)
+    full = _make_rxnorm(codes=frozenset({"a", "b", "c"}), term_types=frozenset({"IN", "SCD"}))
+    in_only = _make_rxnorm(codes=frozenset({"a"}), term_types=frozenset({"IN"}))
+
+    cache.put_rxnorm_concepts(full)
+    cache.put_rxnorm_concepts(in_only, tty_filter=frozenset({"IN"}))
+
+    assert cache.get_rxnorm_concepts("metformin") == full
+    assert cache.get_rxnorm_concepts("metformin", tty_filter=frozenset({"IN"})) == in_only
+
+
+# ---------- envelope fingerprint ----------
+
+
+def test_rxnorm_envelope_fingerprint_is_stable_and_short() -> None:
+    fp = rxnorm_envelope_fingerprint()
+    assert len(fp) == 8
+    assert fp == rxnorm_envelope_fingerprint()
+    int(fp, 16)
+
+
+def test_rxnorm_and_vsac_fingerprints_are_independent() -> None:
+    """Independent per-source fingerprints are the whole point of
+    splitting the namespaces: an RxNorm envelope rev must not
+    invalidate VSAC cache entries (and vice versa)."""
+    assert rxnorm_envelope_fingerprint() != vsac_envelope_fingerprint()
+
+
+def test_old_rxnorm_envelope_under_different_fingerprint_is_invisible(
+    tmp_path: Path,
+) -> None:
+    """Auto-invalidation proof for the RxNorm side."""
+    cache = TerminologyCache(tmp_path)
+    stale_path = cache_path_for_rxnorm("metformin", tmp_path, schema_fp="deadbeef")
+    stale_path.parent.mkdir(parents=True, exist_ok=True)
+    envelope = StoredRxNormConcepts(
+        concepts=_make_rxnorm(),
+        cached_at="2026-01-01T00:00:00+00:00",
+        tty_filter=None,
+    )
+    stale_path.write_text(envelope.model_dump_json())
+
+    assert cache.get_rxnorm_concepts("metformin") is None
+
+
+# ---------- rxnorm_concepts_or_fetch ----------
+
+
+def test_rxnorm_or_fetch_calls_fetcher_on_miss_and_persists(tmp_path: Path) -> None:
+    cache = TerminologyCache(tmp_path)
+    call_count = {"n": 0}
+    concepts = _make_rxnorm()
+
+    def fake_fetch() -> RxNormConcepts:
+        call_count["n"] += 1
+        return concepts
+
+    first = cache.rxnorm_concepts_or_fetch("metformin", fetch=fake_fetch)
+    second = cache.rxnorm_concepts_or_fetch("metformin", fetch=fake_fetch)
+
+    assert first == concepts
+    assert second == concepts
+    assert call_count["n"] == 1
+
+
+def test_rxnorm_or_fetch_propagates_fetcher_exceptions(tmp_path: Path) -> None:
+    cache = TerminologyCache(tmp_path)
+
+    def boom() -> RxNormConcepts:
+        raise RuntimeError("rxnav is down")
+
+    with pytest.raises(RuntimeError, match="rxnav is down"):
+        cache.rxnorm_concepts_or_fetch("metformin", fetch=boom)
+    assert cache.get_rxnorm_concepts("metformin") is None
+
+
+# ---------- coexistence ----------
+
+
+def test_rxnorm_and_vsac_can_share_a_cache_root(tmp_path: Path) -> None:
+    """The whole point of namespacing the filenames (`vsac.` vs
+    `rxnorm.`) is that the two sources can share a cache directory
+    without colliding. Pinning that here so a future filename rev
+    on either side has to keep the namespacing or this test fails
+    loudly."""
+    cache = TerminologyCache(tmp_path)
+    cache.put_vsac_expansion(_make_expansion())
+    cache.put_rxnorm_concepts(_make_rxnorm())
+
+    assert cache.get_vsac_expansion(DIABETES_OID) is not None
+    assert cache.get_rxnorm_concepts("metformin") is not None
+
+    files = sorted(p.name for p in tmp_path.iterdir())
+    assert any(f.startswith("vsac.") for f in files)
+    assert any(f.startswith("rxnorm.") for f in files)
+    assert len(files) == 2

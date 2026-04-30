@@ -18,10 +18,18 @@ the OID/RxCUI emission for arms B and C.
 from __future__ import annotations
 
 from clinical_demo.terminology.cache import (
+    StoredRxNormConcepts,
     StoredVSACExpansion,
     TerminologyCache,
+    cache_path_for_rxnorm,
     cache_path_for_vsac,
+    rxnorm_envelope_fingerprint,
     vsac_envelope_fingerprint,
+)
+from clinical_demo.terminology.rxnorm_client import (
+    RxNormClient,
+    RxNormConcepts,
+    RxNormError,
 )
 from clinical_demo.terminology.vsac_client import (
     VSACClient,
@@ -30,11 +38,17 @@ from clinical_demo.terminology.vsac_client import (
 )
 
 __all__ = [
+    "RxNormClient",
+    "RxNormConcepts",
+    "RxNormError",
+    "StoredRxNormConcepts",
     "StoredVSACExpansion",
     "TerminologyCache",
     "VSACClient",
     "VSACError",
     "VSACExpansion",
+    "cache_path_for_rxnorm",
     "cache_path_for_vsac",
+    "rxnorm_envelope_fingerprint",
     "vsac_envelope_fingerprint",
 ]

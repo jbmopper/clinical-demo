@@ -52,19 +52,23 @@ AI Forward Deployed Engineer interview.
 > bumped v1→v2 with an additive `ALTER TABLE` migration (D-67)
 > so persisted runs carry their labels; was a silent
 > layer-1-empty-report bug. Decisions D-67, D-68.
-> **425 tests passing** (Python; the UI is a thin
+> **453 tests passing** (Python; the UI is a thin
 > presentation layer over the API and is exercised manually).
 > Up next (PLAN task 2.10 / D-69): move the concept bridge from
-> hand-curated aliases toward NLM terminology APIs. Slices 1–2
-> are in: a VSAC FHIR `$expand` client with UMLS API-key plumbing
-> and an offline fixture/test harness, plus an on-disk
-> `TerminologyCache` with auto-invalidating envelope fingerprint
-> and atomic writes (mirrors the D-66 extractor cache discipline)
-> so eval re-runs don't pay the NLM round-trip per pair. Matcher
-> behavior still uses the existing alias tables until a resolver
-> is wired through `concept_lookup.py`. Next slices add
-> RxNorm/UMLS lookup, then wire the resolver behind the
-> `binding_strategy` switch, then re-run the eval harness.
+> hand-curated aliases toward NLM terminology APIs. Slices 1–3
+> are in: a VSAC FHIR `$expand` client with UMLS API-key plumbing,
+> an on-disk `TerminologyCache` with auto-invalidating envelope
+> fingerprint and atomic writes (mirrors the D-66 extractor cache
+> discipline) so eval re-runs don't pay the NLM round-trip per
+> pair, and a RxNorm REST client that resolves drug surface forms
+> into a ConceptSet of RxCUIs (RxNav is public, no API key needed
+> — fresh checkouts can probe medications without an NLM
+> account). Matcher behavior still uses the existing alias tables
+> until a resolver is wired through `concept_lookup.py`. Next
+> slice wires the resolver behind a `binding_strategy` switch
+> (alias path stays as fallback), then re-runs the eval harness
+> against the D-68 baseline to measure the `unmapped_concept`
+> delta.
 > Then layer-2 (Chia F1) + layer-3 (LLM-as-judge) eval layers. The
 > UI gets ported into `juliusm.com` for the public-facing demo.
 

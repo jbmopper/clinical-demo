@@ -19,64 +19,72 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** PLAN task 2.10 / **D-69** slice 2 — on-disk
-  terminology cache. New `clinical_demo.terminology.cache` module
-  (`TerminologyCache`, `StoredVSACExpansion`,
-  `cache_path_for_vsac`, `vsac_envelope_fingerprint`) mirroring
-  the D-40/D-66 extractor-cache discipline: filename pattern is
-  `vsac.<oid>.<filter_tag>.<schema_fp>.json`, schema fingerprint
-  is an 8-hex SHA over `StoredVSACExpansion.model_json_schema()`
-  so any envelope-shape change auto-orphans prior entries
-  silently, and writes are atomic via temp file + `os.replace`.
-  Public surface includes a `vsac_expansion_or_fetch(oid,
-  fetch=...)` convenience that takes a no-arg fetcher closure so
-  the cache stays decoupled from `VSACClient` (no fetch ↔ cache
-  import cycle as the API surface grows). Settings gain
-  `terminology_cache_dir: Path = Path("data/cache/terminology")`
-  (the default lives under the already-gitignored `data/cache/`
-  root); env-overridable via `TERMINOLOGY_CACHE_DIR`. 14 new
-  offline tests cover round-trip (incl. frozenset preservation),
-  miss → None, lazy root creation, filename pinning, `urn:oid:`
-  prefix dedup, filter-discriminates-key (path + end-to-end), 8-
-  hex fingerprint stability + change-on-schema-edit, "old envelope
-  under different fingerprint is invisible" auto-invalidation
-  proof, `_or_fetch` happy path / fetcher-exception passthrough /
-  filter discrimination, no leftover `.tmp` after success, loud
-  Pydantic `ValidationError` on corrupt JSON, settings default +
-  env override. No matcher wiring yet — that lands in slice 3
-  with the `binding_strategy` switch.
-  Previous: D-69 slice 1 — VSAC FHIR `$expand` client +
-  `UMLS_API_KEY` plumbing + offline tests + live probe script.
-  Before that: D-67 (eval-store v1→v2 migration) and D-68 (first
+- **Last completed:** PLAN task 2.10 / **D-69** slice 3 — RxNorm
+  REST client + cache integration. New
+  `clinical_demo.terminology.rxnorm_client` module: thin sync
+  wrapper over RxNav `/drugs.json?name=...` returning a
+  matcher-shaped `RxNormConcepts` envelope (query + ConceptSet of
+  RxCUIs + the set of RxNorm term types that contributed). Unions
+  codes across every populated `conceptGroup` by default (Synthea
+  patient bundles can be coded at any TTY level — IN, SCD, SBD —
+  so a narrower default would silently drop valid evidence); a
+  `tty_filter=frozenset({...})` arg restricts to a chosen set for
+  slice-4 ablations. Auth model is the key difference from VSAC:
+  RxNav is **public, no API key** (gated only on a ~20 rps rate
+  limit), so a fresh checkout can probe RxNorm without an NLM
+  account. Same fail-loud discipline as VSAC: empty / malformed
+  responses raise `RxNormError` rather than returning an empty
+  ConceptSet (which would tell the matcher "no codes count" —
+  the wrong default). `TerminologyCache` extended with parallel
+  `get/put/_or_fetch_rxnorm_concepts` methods, an
+  `rxnorm_envelope_fingerprint` independent from the VSAC one
+  (so an RxNorm envelope rev does not invalidate VSAC entries
+  and vice versa), filename pattern
+  `rxnorm.<query_tag>.<filter_tag>.<schema_fp>.json` with the
+  query hashed (case-insensitive, whitespace-stripped) so
+  filename-unsafe surface forms like "Glucophage" or
+  "metformin/glipizide" round-trip cleanly. Recorded fixture
+  `tests/fixtures/rxnorm/metformin_drugs.json` plus live probe
+  script `scripts/probe_rxnorm.py`. 27 new offline tests (12
+  client + 15 cache); the cache tests also pin the
+  vsac/rxnorm-coexist-in-one-root contract. Decision **D-69**
+  updated; matcher wiring still lands in slice 4.
+  Previous: D-69 slice 2 — on-disk terminology cache
+  (`TerminologyCache`) with auto-invalidating envelope
+  fingerprint, atomic writes, and `vsac_expansion_or_fetch`
+  convenience. D-69 slice 1 — VSAC FHIR `$expand` client +
+  `UMLS_API_KEY` plumbing. Before that: D-67 / D-68 (first
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** PLAN task 2.10 / D-69 slice 3 — RxNorm + UMLS
-  search clients (same shape as VSAC: offline tests + recorded
-  fixture + `scripts/probe_*` script), then slice 4 — wire
-  `lookup_condition` / `lookup_lab` / `lookup_medication` behind
-  a `Settings.binding_strategy` switch (terminology-backed mode
-  added to the `BindingStrategy` literal, with the alias path
-  preserved as a fallback during migration). Two compounding
-  cleanups to slot before slice 5's eval re-run: extractor
-  compound-criterion routing prompt patch (50–100 verdicts move
-  from silent `unmapped_concept` to `human_review_required`) and
-  wiring structured CT.gov age/sex fields into the extractor
-  (layer-1 coverage 55% → ~95%). Slice 5: re-run the eval
-  harness against the D-68 baseline and report
-  `unmapped_concept` rate, agreement / coverage / binding
+- **Next:** PLAN task 2.10 / D-69 **slice 4** — wire
+  `lookup_condition` / `lookup_lab` / `lookup_medication`
+  through the resolved bindings behind a `Settings.binding_strategy`
+  switch (extend the `BindingStrategy` literal beyond `alias`,
+  add a small trial-side bindings registry that maps surface
+  forms to either a VSAC OID or an RxNorm name lookup, route
+  through the cache so eval pairs share resolved bindings). The
+  hand-curated alias path stays as fallback during migration.
+  Optional **slice 3b** beforehand: UMLS search client for
+  source vocabularies not covered by a known VSAC value set;
+  defer until slice 4 reveals a real surface form that needs
+  it. Two compounding cleanups to slot before slice 5's eval
+  re-run: extractor compound-criterion routing prompt patch
+  (50–100 verdicts move from silent `unmapped_concept` to
+  `human_review_required`) and wiring structured CT.gov age/sex
+  fields into the extractor (layer-1 coverage 55% → ~95%).
+  Slice 5: re-run the eval harness against the D-68 baseline and
+  report `unmapped_concept` rate, agreement / coverage / binding
   precision deltas, latency, failure modes. Then PLAN tasks 2.5
   (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then 3.x
   reliability + cost work and the `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (105 src files; mypy's count
-  is `src` + `tests` together — the prior ~107 was a rough
-  pre-VSAC reading); `ruff check` + `ruff format` clean;
-  `pytest` 426 passing (408 → 425 with cache; +1 langfuse-test
-  isolation fix removed the prior deselect, so 426 / 426 with no
-  deselects). The reviewer UI is a thin presentation layer over
-  the API and is
-  exercised manually; no JS test runner in this repo on purpose
-  (per D-64 it's not the production artifact).
+- **Gates at HEAD:** `mypy` clean (107 source files; +2 from the
+  RxNorm client module + tests); `ruff check` + `ruff format`
+  clean; `pytest` 453 / 453 passing (426 → 453; +12 RxNorm
+  client + 15 RxNorm cache). The reviewer UI is a thin
+  presentation layer over the API and is exercised manually; no
+  JS test runner in this repo on purpose (per D-64 it's not the
+  production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
 ### Non-trivial open follow-ups
@@ -1555,16 +1563,43 @@ Current implementation:
   is overridable via `TERMINOLOGY_CACHE_DIR`. 17 offline tests
   pin the round-trip, key discrimination, fingerprint behavior,
   atomicity, and settings wiring.
+- **RxNorm REST client** (slice 3) in
+  `clinical_demo.terminology.rxnorm_client`. Thin sync wrapper
+  over RxNav `/drugs.json?name=...` returning a matcher-shaped
+  `RxNormConcepts` envelope (query + ConceptSet of RxCUIs + the
+  set of RxNorm term types that contributed). Default unions
+  codes across every populated `conceptGroup` because Synthea
+  patient bundles can be coded at any TTY level (IN, SCD, SBD);
+  `tty_filter=frozenset({...})` restricts for slice-4 ablations.
+  Auth model is the key difference from VSAC: RxNav is
+  **public, no API key** (~20 rps per IP), so a fresh checkout
+  can probe RxNorm without an NLM account. Same fail-loud
+  discipline as VSAC: empty / malformed responses raise
+  `RxNormError`. `TerminologyCache` extended with parallel
+  `get/put/_or_fetch_rxnorm_concepts` methods plus an independent
+  `rxnorm_envelope_fingerprint` (so an RxNorm envelope rev does
+  not invalidate VSAC entries and vice versa); filename pattern
+  `rxnorm.<query_tag>.<filter_tag>.<schema_fp>.json` with the
+  query hashed (case-insensitive, whitespace-stripped) so
+  filename-unsafe surface forms like "Glucophage" or
+  "metformin/glipizide" round-trip cleanly. Recorded fixture +
+  live probe script `scripts/probe_rxnorm.py`. 27 new offline
+  tests; the cache tests pin the
+  vsac/rxnorm-coexist-in-one-root contract.
 
 Follow-on work:
 
-1. Add RxNorm lookup for medication ingredients/classes and UMLS
-   search for source vocabularies not covered by a known VSAC value
-   set.
-2. Wire `lookup_condition`, `lookup_lab`, and `lookup_medication`
+1. Wire `lookup_condition`, `lookup_lab`, and `lookup_medication`
    through the resolved bindings while preserving the existing
    alias path as a fallback during migration. This is the slice
    that promotes the `binding_strategy` literal beyond `alias`.
+   Trial-side bindings registry maps surface form → either a
+   VSAC OID (for conditions / labs / sets that have a known
+   value set) or an RxNorm name lookup (for medications).
+2. Optional UMLS search client for source vocabularies not
+   covered by a known VSAC value set. Defer until follow-on 1
+   reveals a real surface form that needs it; the matcher
+   shouldn't grow API surfaces speculatively.
 3. Re-run the eval harness and compare against the D-68
    `unmapped_concept` baseline; report `unmapped_concept` rate,
    agreement/coverage deltas, binding precision on a hand-checked
