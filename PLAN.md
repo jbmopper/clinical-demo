@@ -19,7 +19,24 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** D-69 slice 4 hotfix — **T2DM binding
+- **Last completed:** D-69 slice 5 — **two-pass terminology eval
+  rerun and diagnostic report**. Fresh `extractor-v0.2` cache warmup
+  over all 30 curated trials produced 656 criteria for $0.0750
+  (~20.5 min wall). The cached imperative eval with
+  `binding_strategy="two_pass"` ran 49 pairs in 13.5s with 0 errors;
+  run id `98568ccd090d`. Snapshot written under
+  `eval/baselines/2026-04-30/`. Headline vs. D-68: `unmapped_concept`
+  count 689 -> 660 (-29) and rate 81.9% -> 60.8% (-21.2 pp);
+  layer-1 coverage 55.3% -> 98.7% (+43.5 pp); agreement 81.0% ->
+  88.3% (+7.4 pp). `indeterminate` rate rose slightly (91.8% ->
+  93.6%) because Rule 13 moved many compound fake-structured rows into
+  explicit `free_text` / `human_review_required` rows. Registered
+  terminology surfaces observed in the run resolved 26/26 (condition
+  11, lab 14, medication 1), which is a resolution outcome rather than
+  a clinical precision claim. Added `eval report --diagnostics`,
+  `--binding-strategy` for eval runs, and a structured D-68 diagnostics
+  baseline to make this rerun reproducible.
+  Previous: D-69 slice 4 hotfix — **T2DM binding
   needed an explicit SNOMED filter, and the test suite needed
   to be hermetic from `.env`**. A live smoke under
   `BINDING_STRATEGY=two_pass` surfaced two latent issues. (1)
@@ -302,46 +319,18 @@
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** **slice 5 (eval rerun)** is now the natural next
-  beat -- six independent improvements have landed since the
-  D-68 baseline (Rule 13 compound-criterion routing, CT.gov
-  structured age/sex enrichment, terminology two_pass wire-up,
-  T2DM VSAC seed, six RxNorm medication bindings, two more
-  VSAC bindings for hypertension + HbA1c), each attributable
-  to its own commit. Re-run the eval harness against the
-  D-68 baseline with `binding_strategy="two_pass"` and report
-  `unmapped_concept` rate, agreement / coverage / binding
-  precision deltas, latency, failure modes; produce a per-commit
-  attribution table. Only after the empirical results land
-  should we extend the registry further -- the eval surfaces
-  which deferred bindings (hyperlipidemia, CKD, eGFR, BMI,
-  pregnancy, GLP-1 / SGLT2 class coverage) actually move
-  metrics vs. which are speculative. Optional **slice 3b**
-  (UMLS search client) likewise defers to slice-5 evidence.
-  Bindings expansion shape, when it happens, is one-line
-  additions + a recorded fixture per VSAC OID -- the slice-4
-  plumbing supports them today. Optional **slice 3b** thereafter: UMLS search
-  client for source vocabularies not covered by a known VSAC
-  value set; defer until registry expansion reveals a real
-  surface form that needs it. Then **slice 5** — re-run the
-  eval harness against the D-68 baseline with `binding_strategy=
-  "two_pass"` and report `unmapped_concept` rate,
-  agreement / coverage / binding precision deltas, latency,
-  failure modes with four independent improvements (Rule 13,
-  CT.gov structured age/sex, terminology wire-up, registry
-  population) attributable to individual commits. Then PLAN
-  tasks 2.5 (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then
-  3.x reliability + cost work and the `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (113 source files); `ruff
-  check` + `ruff format` clean; `pytest` 547 / 547 passing
-  (531 → 547; +3 OID-pinning parametrize fan-out, +4
-  hypertension surface parametrize, +6 HbA1c surface
-  parametrize, +3 fixture-shape parametrize, +2 new
-  positive-lookup tests, -1 stale empty-lab-registry pin,
-  -1 single-OID test consolidated into parametrize). The
-  reviewer UI is a thin presentation layer over the API and
-  is exercised manually; no JS test runner in this repo on
-  purpose (per D-64 it's not the production artifact).
+- **Next:** PLAN task 2.5 — layer-2 Chia F1 eval. Use the slice-5
+  evidence to defer further terminology expansion until the next
+  eval-led registry pass; the top remaining gaps are now BMI, common
+  CBC labs, pregnancy/breastfeeding, and pulmonary-hypertension
+  measures/exclusions rather than diabetes-only surfaces. Then PLAN
+  task 2.6 (layer-3 LLM judge), then 3.x reliability + cost work
+  and the `juliusm.com` deploy.
+- **Gates at HEAD:** `mypy` clean (116 source files); `ruff
+  check` + `ruff format --check` clean; `pytest` 550 / 550
+  passing. The reviewer UI is a thin presentation layer over the
+  API and is exercised manually; no JS test runner in this repo
+  on purpose (per D-64 it's not the production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
 ### Non-trivial open follow-ups
@@ -379,6 +368,16 @@ so they don't get lost between sessions.
   explicit absence, insufficient evidence, temporal/as-of cases,
   note-vs-structured contradiction, and prompt injection in patient
   narrative text.
+- **Robust Synthea generation + realism gaps.** The current Nov 2021
+  sample is useful for loader/matcher bring-up but too small and too
+  clean to support strong demo/eval claims. Follow
+  `docs/synthea-generation-research.md`: generate a reproducible broad
+  adult population plus an enriched cardiometabolic keep-filtered
+  batch, parameterize the cohort input path, persist generation
+  manifests, rebuild positive/near-miss eval pairs, and add perturbed
+  FHIR fixtures that mimic real export messiness (local codes, missing
+  displays, unit drift, stale meds, duplicate conditions, partial
+  history, and note-vs-structured contradictions).
 - *(Promoted to PLAN task 2.10 / D-69.)* The hand-curated
   vocab-expansion play that D-68 surfaced as highest-impact has
   been re-scoped around NLM terminology APIs. The ranked top-N
@@ -471,6 +470,10 @@ prove correctness over breadth I couldn't validate."
   industry Phase 2/3 and NIH-sponsored to vary criterion style.
 - ~50–100 Chia-annotated trials retained as extraction golden set, filtered
   toward overlap with our domains.
+
+Generation parameters, Synthea-vs-real-EHR gaps, and the follow-up plan for a
+more robust generated cohort are captured in
+[`docs/synthea-generation-research.md`](./docs/synthea-generation-research.md).
 
 ---
 

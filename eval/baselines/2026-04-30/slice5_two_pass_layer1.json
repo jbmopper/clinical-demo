@@ -1,0 +1,732 @@
+{
+  "run_id": "98568ccd090d",
+  "notes": "D-69 slice 5: imperative cached extractions two_pass; binding_strategy=two_pass",
+  "cells": [
+    {
+      "pair_id": "060e72d3__NCT05713006",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "≥ 18 years old",
+      "status": "agree"
+    },
+    {
+      "pair_id": "1293efbb__NCT06524960",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Females 18-50 years; males 21-50 years (minimum age based on skeletal maturity)",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "1293efbb__NCT06524960",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 50 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Females 18-50 years; males 21-50 years (minimum age based on skeletal maturity)",
+      "status": "agree"
+    },
+    {
+      "pair_id": "1293efbb__NCT06964087",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Male or female aged ≥18 to 50 years on the day of signing informed consent.",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "1293efbb__NCT06964087",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 50 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Male or female aged ≥18 to 50 years on the day of signing informed consent.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "28db1c55__NCT06941441",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "28db1c55__NCT07297797",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female, aged ≥ 18 years and ≤ 75 years;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "28db1c55__NCT07297797",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female, aged ≥ 18 years and ≤ 75 years;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "2e555528__NCT06475781",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Subjects aged between 18 and 85 years at the time of signing informed consent.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "2e555528__NCT06475781",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 85 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Subjects aged between 18 and 85 years at the time of signing informed consent.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "2e555528__NCT06941441",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "38f38890__NCT06217302",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=75 Years]",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "38f38890__NCT06217302",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=75 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "38f38890__NCT07489209",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥18 years old, male or female, and weight ≥40 kg.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3a364909__NCT06220266",
+      "field": "sex",
+      "seed_verdict": "fail",
+      "seed_expected": "FEMALE",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: sex=FEMALE]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3a364909__NCT07362459",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years, both male and female.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3beee40e__NCT06143566",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=100 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3beee40e__NCT06143566",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 100 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=100 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3beee40e__NCT07394114",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=75 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "3beee40e__NCT07394114",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=75 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "407ef75b__NCT06941441",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "407ef75b__NCT07297797",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female, aged ≥ 18 years and ≤ 75 years;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "407ef75b__NCT07297797",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female, aged ≥ 18 years and ≤ 75 years;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "509f9a77__NCT06941441",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "509f9a77__NCT07221513",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=85 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "509f9a77__NCT07221513",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 85 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=85 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "55c5b8d3__NCT06128278",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 50 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=50 Years, maximumAge=69 Years]",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "55c5b8d3__NCT06128278",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 69 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=50 Years, maximumAge=69 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "55c5b8d3__NCT06128278",
+      "field": "sex",
+      "seed_verdict": "fail",
+      "seed_expected": "FEMALE",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Postmenopausal (50-69 y) women",
+      "status": "agree"
+    },
+    {
+      "pair_id": "55c5b8d3__NCT06564324",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥18 years (or ≥20 years as required by local regulations).",
+      "status": "agree"
+    },
+    {
+      "pair_id": "56cfe6a5__NCT06475781",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Subjects aged between 18 and 85 years at the time of signing informed consent.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "56cfe6a5__NCT06475781",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 85 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Subjects aged between 18 and 85 years at the time of signing informed consent.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "56cfe6a5__NCT06941441",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "60b0873c__NCT06220266",
+      "field": "sex",
+      "seed_verdict": "pass",
+      "seed_expected": "FEMALE",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: sex=FEMALE]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "60b0873c__NCT07224763",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 40 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "50 to 70 years of age at the time of informed consent, or 40 to <50 years of age with a calculated panel reactive antibody (cPRA) of ≥99.9%.",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "60b0873c__NCT07224763",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 70 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "50 to 70 years of age at the time of informed consent, or 40 to <50 years of age with a calculated panel reactive antibody (cPRA) of ≥99.9%.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "83f922a9__NCT05967689",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "≥18 years of age (or meets the country's regulatory definition of legal adult age, whichever is greater.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9cbf47d8__NCT07362459",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years, both male and female.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9e84e569__NCT04602754",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Participants of both sexes, with age greater than or equal to 18 years and less than or equal to 85 years;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9e84e569__NCT04602754",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 85 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Participants of both sexes, with age greater than or equal to 18 years and less than or equal to 85 years;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9e84e569__NCT06524960",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Females 18-50 years; males 21-50 years (minimum age based on skeletal maturity)",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "9e84e569__NCT06524960",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 50 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Females 18-50 years; males 21-50 years (minimum age based on skeletal maturity)",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9ef4db86__NCT07082114",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female subjects between 18 and 75 years of age (inclusive).",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9ef4db86__NCT07082114",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female subjects between 18 and 75 years of age (inclusive).",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9ef4db86__NCT07374328",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=65 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "9ef4db86__NCT07374328",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 65 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=65 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "a06bce31__NCT06941441",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "a06bce31__NCT07221513",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=85 Years]",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "a06bce31__NCT07221513",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 85 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=85 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "a9a2c4dd__NCT05998863",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 21 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Ambulatory adult subjects (> 21 years of age) of either gender of any ethnicity",
+      "status": "agree"
+    },
+    {
+      "pair_id": "a9a2c4dd__NCT05998863",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 99 Years",
+      "matcher_verdict": null,
+      "matcher_source_text": null,
+      "status": "missing"
+    },
+    {
+      "pair_id": "a9a2c4dd__NCT07223658",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "aa01ba4c__NCT07064473",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "At least 18 years old at time of consent",
+      "status": "agree"
+    },
+    {
+      "pair_id": "aa01ba4c__NCT07374328",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=65 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "aa01ba4c__NCT07374328",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 65 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=65 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "c2786fee__NCT06217302",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=75 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "c2786fee__NCT06217302",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=75 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "c2786fee__NCT06597006",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 2 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Male or female participants, 2 to <12 years of age at screening",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "c2786fee__NCT06597006",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 11 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "Male or female participants, 2 to <12 years of age at screening",
+      "status": "agree"
+    },
+    {
+      "pair_id": "c46a254d__NCT06941441",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥ 18 years",
+      "status": "agree"
+    },
+    {
+      "pair_id": "c46a254d__NCT07335211",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 19 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Adults aged 19 years and older",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d02b2ca5__NCT06128278",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 50 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=50 Years, maximumAge=69 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d02b2ca5__NCT06128278",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 69 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=50 Years, maximumAge=69 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d02b2ca5__NCT06128278",
+      "field": "sex",
+      "seed_verdict": "pass",
+      "seed_expected": "FEMALE",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Postmenopausal (50-69 y) women",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d02b2ca5__NCT07489209",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥18 years old, male or female, and weight ≥40 kg.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d362f4e5__NCT06564324",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Age ≥18 years (or ≥20 years as required by local regulations).",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d57e867e__NCT06143566",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=100 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d57e867e__NCT06143566",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 100 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=100 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d57e867e__NCT06845202",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=75 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "d57e867e__NCT06845202",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=75 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "e7d52393__NCT04040959",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 35 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=35 Years, maximumAge=80 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "e7d52393__NCT04040959",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 80 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=35 Years, maximumAge=80 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "e7d52393__NCT06568471",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female participants ≥18 years of age at the screening visit;",
+      "status": "agree"
+    },
+    {
+      "pair_id": "ed803173__NCT06558708",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "At the age of 18-75 (inclusive) at the time of informed consent, male or female.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "ed803173__NCT06558708",
+      "field": "max_age",
+      "seed_verdict": "pass",
+      "seed_expected": "<= 75 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "At the age of 18-75 (inclusive) at the time of informed consent, male or female.",
+      "status": "agree"
+    },
+    {
+      "pair_id": "ed803173__NCT07374328",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=65 Years]",
+      "status": "disagree"
+    },
+    {
+      "pair_id": "ed803173__NCT07374328",
+      "field": "max_age",
+      "seed_verdict": "fail",
+      "seed_expected": "<= 65 Years",
+      "matcher_verdict": "fail",
+      "matcher_source_text": "[ct.gov structured field: minimumAge=18 Years, maximumAge=65 Years]",
+      "status": "agree"
+    },
+    {
+      "pair_id": "fa2d28b1__NCT06090266",
+      "field": "min_age",
+      "seed_verdict": "pass",
+      "seed_expected": ">= 18 Years",
+      "matcher_verdict": "pass",
+      "matcher_source_text": "Male or female subjects ≥ 18 years of age.",
+      "status": "agree"
+    }
+  ],
+  "field_stats": [
+    {
+      "field": "min_age",
+      "agree": 38,
+      "disagree": 9,
+      "missing": 0
+    },
+    {
+      "field": "max_age",
+      "agree": 26,
+      "disagree": 0,
+      "missing": 1
+    },
+    {
+      "field": "sex",
+      "agree": 4,
+      "disagree": 0,
+      "missing": 0
+    }
+  ],
+  "skipped_uncoverable": {
+    "healthy_volunteers": 6
+  },
+  "skipped_failed_cases": 0
+}

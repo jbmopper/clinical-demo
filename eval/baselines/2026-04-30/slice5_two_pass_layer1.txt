@@ -1,0 +1,25 @@
+
+Layer-1 report — run 98568ccd090d
+  notes: D-69 slice 5: imperative cached extractions two_pass; binding_strategy=two_pass
+  cells: 78  overall agreement: 88.3%  overall coverage: 98.7%
+  skipped (uncoverable in v0): healthy_volunteers=6
+
+  per-field:
+    field                agree  disagree  missing   agreement   coverage
+    min_age                 38         9        0       80.9%     100.0%
+    max_age                 26         0        1      100.0%      96.3%
+    sex                      4         0        0      100.0%     100.0%
+
+  disagreements (9; showing up to 20):
+    1293efbb__NCT06524960        min_age             seed=pass          matcher=fail
+    1293efbb__NCT06964087        min_age             seed=pass          matcher=fail
+    38f38890__NCT06217302        min_age             seed=pass          matcher=fail
+    55c5b8d3__NCT06128278        min_age             seed=pass          matcher=fail
+    60b0873c__NCT07224763        min_age             seed=pass          matcher=fail
+    9e84e569__NCT06524960        min_age             seed=pass          matcher=fail
+    a06bce31__NCT07221513        min_age             seed=pass          matcher=fail
+    c2786fee__NCT06597006        min_age             seed=pass          matcher=fail
+    ed803173__NCT07374328        min_age             seed=pass          matcher=fail
+
+  missing extractions (1; showing up to 20):
+    a9a2c4dd__NCT05998863        max_age             expected='<= 99 Years'

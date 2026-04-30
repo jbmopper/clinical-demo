@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Literal
@@ -34,6 +35,14 @@ from clinical_demo.data.clinicaltrials import trial_from_raw
 from clinical_demo.data.synthea import iter_bundles
 from clinical_demo.domain.patient import Patient
 from clinical_demo.domain.trial import Trial
+from clinical_demo.evals.diagnostics import (
+    build_diagnostics,
+    diagnostics_to_json,
+    load_diagnostics,
+    load_layer_one,
+    render_diagnostics,
+    write_diagnostics,
+)
 from clinical_demo.evals.layer_one import build_layer_one_report
 from clinical_demo.evals.report_layer_one import render_layer_one
 from clinical_demo.evals.run import EvalCase, RunResult, load_dataset, run_eval
@@ -128,6 +137,23 @@ def _make_scorer(
     return _scorer
 
 
+def _apply_binding_strategy(strategy: Literal["alias", "two_pass"] | None) -> None:
+    """Override the process-wide binding strategy for this CLI run.
+
+    Settings are cached, and the terminology resolver is cached from
+    settings. If the operator passes `--binding-strategy`, clear both
+    before the scorer starts so every criterion in the run sees the
+    same requested mode."""
+    if strategy is None:
+        return
+    os.environ["BINDING_STRATEGY"] = strategy
+    from clinical_demo.settings import get_settings
+    from clinical_demo.terminology.resolver import get_resolver
+
+    get_settings.cache_clear()
+    get_resolver.cache_clear()
+
+
 # --------------------- summary rendering
 
 
@@ -189,6 +215,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if not seed_path.exists():
         print(f"error: dataset {seed_path} not found", file=sys.stderr)
         return 1
+    _apply_binding_strategy(args.binding_strategy)
 
     pair_ids = set(args.pair_id) if args.pair_id else None
     cases = load_dataset(seed_path, pair_ids=pair_ids, limit=args.limit)
@@ -214,7 +241,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         scorer,
         cases,
         dataset_path=seed_path,
-        notes=args.notes,
+        notes=_notes_with_binding_strategy(args.notes, args.binding_strategy),
         on_case_done=_progress,
     )
 
@@ -257,11 +284,43 @@ def _cmd_report(args: argparse.Namespace) -> int:
         else:
             print(render_layer_one(report))
         return 0
+    if args.diagnostics:
+        diagnostics = build_diagnostics(run)
+        if args.write_diagnostics is not None:
+            write_diagnostics(args.write_diagnostics, diagnostics)
+        if args.format == "json":
+            print(diagnostics_to_json(diagnostics))
+        else:
+            baseline = (
+                load_diagnostics(args.baseline_diagnostics) if args.baseline_diagnostics else None
+            )
+            baseline_layer_one = (
+                load_layer_one(args.baseline_layer1) if args.baseline_layer1 else None
+            )
+            print(
+                render_diagnostics(
+                    diagnostics,
+                    baseline=baseline,
+                    layer_one=build_layer_one_report(run),
+                    baseline_layer_one=baseline_layer_one,
+                )
+            )
+        return 0
     if args.format == "json":
         print(run.model_dump_json(indent=2))
     else:
         print(_summarize(run))
     return 0
+
+
+def _notes_with_binding_strategy(
+    notes: str,
+    strategy: Literal["alias", "two_pass"] | None,
+) -> str:
+    if strategy is None:
+        return notes
+    suffix = f"binding_strategy={strategy}"
+    return f"{notes}; {suffix}" if notes else suffix
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -288,6 +347,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Only meaningful with --orchestrator=graph.",
     )
     p_run.add_argument(
+        "--binding-strategy",
+        choices=("alias", "two_pass"),
+        default=None,
+        help="Override Settings.binding_strategy for this run.",
+    )
+    p_run.add_argument(
         "--pair-id",
         action="append",
         default=None,
@@ -301,6 +366,26 @@ def main(argv: list[str] | None = None) -> int:
     p_report.add_argument("--db", default=str(DEFAULT_DB))
     p_report.add_argument("--run-id", default=None)
     p_report.add_argument("--format", choices=("text", "json"), default="text")
+    p_report.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Render D-69 slice-5 diagnostics for a run.",
+    )
+    p_report.add_argument(
+        "--baseline-diagnostics",
+        default=None,
+        help="Optional EvalDiagnostics JSON baseline for --diagnostics deltas.",
+    )
+    p_report.add_argument(
+        "--baseline-layer1",
+        default=None,
+        help="Optional LayerOneReport JSON baseline for --diagnostics agreement/coverage deltas.",
+    )
+    p_report.add_argument(
+        "--write-diagnostics",
+        default=None,
+        help="Write the computed diagnostics JSON to this path.",
+    )
     p_report.add_argument(
         "--layer",
         type=int,

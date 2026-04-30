@@ -1,0 +1,156 @@
+{
+  "run_id": "98568ccd090d",
+  "notes": "D-69 slice 5: imperative cached extractions two_pass; binding_strategy=two_pass",
+  "n_cases": 49,
+  "n_errors": 0,
+  "scored_cases": 49,
+  "total_criteria": 1086,
+  "total_scoring_latency_ms": 13486.470748001011,
+  "avg_scoring_latency_ms": 275.23409689797984,
+  "verdict_counts": {
+    "fail": 15,
+    "indeterminate": 1016,
+    "pass": 55
+  },
+  "reason_counts": {
+    "ambiguous_criterion": 3,
+    "extractor_invariant_violation": 11,
+    "human_review_required": 296,
+    "no_data": 14,
+    "ok": 70,
+    "unit_mismatch": 13,
+    "unmapped_concept": 660,
+    "unsupported_mood": 19
+  },
+  "kind_counts": {
+    "age": 47,
+    "condition_absent": 328,
+    "condition_present": 162,
+    "free_text": 304,
+    "measurement_threshold": 170,
+    "medication_absent": 20,
+    "medication_present": 18,
+    "sex": 6,
+    "temporal_window": 31
+  },
+  "unmapped_count": 660,
+  "unmapped_rate": 0.6077348066298343,
+  "indeterminate_count": 1016,
+  "indeterminate_rate": 0.9355432780847146,
+  "binding_registered_total": 26,
+  "binding_registered_resolved": 26,
+  "binding_registered_unmapped": 0,
+  "binding_registered_by_kind": {
+    "condition": {
+      "resolved": 11
+    },
+    "lab": {
+      "resolved": 14
+    },
+    "medication": {
+      "resolved": 1
+    }
+  },
+  "top_unmapped_surfaces": [
+    {
+      "surface": "body mass index",
+      "kind": "measurement_threshold",
+      "count": 12
+    },
+    {
+      "surface": "hemoglobin",
+      "kind": "measurement_threshold",
+      "count": 11
+    },
+    {
+      "surface": "platelet count",
+      "kind": "measurement_threshold",
+      "count": 9
+    },
+    {
+      "surface": "pregnancy or breastfeeding",
+      "kind": "condition_absent",
+      "count": 9
+    },
+    {
+      "surface": "symptomatic pulmonary hypertension classified as WHO FC II or III",
+      "kind": "condition_present",
+      "count": 7
+    },
+    {
+      "surface": "pulmonary vascular resistance",
+      "kind": "measurement_threshold",
+      "count": 7
+    },
+    {
+      "surface": "stable background therapy for PAH",
+      "kind": "temporal_window",
+      "count": 7
+    },
+    {
+      "surface": "diagnosis of pulmonary hypertension WHO Groups 2, 3, 4, or 5",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "diagnosis of HIV-associated PAH, PAH associated with portal hypertension, schistosomiasis-associated PAH, pulmonary veno-occlusive disease",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "uncontrolled systemic hypertension",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "liver and kidney function tests",
+      "kind": "measurement_threshold",
+      "count": 7
+    },
+    {
+      "surface": "currently enrolled in or have completed any other investigational product study",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "prior exposure to sotatercept or luspatercept or known allergic reaction",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "history of full pneumonectomy",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "known history of portal hypertension or chronic liver disease",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "cerebrovascular accident",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "acutely decompensated heart failure",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "significant mitral regurgitation or aortic regurgitation",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "received intravenous inotropes",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "blood pressure",
+      "kind": "measurement_threshold",
+      "count": 5
+    }
+  ]
+}

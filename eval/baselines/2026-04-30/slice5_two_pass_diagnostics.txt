@@ -1,0 +1,55 @@
+
+D-69 slice-5 diagnostics — run 98568ccd090d
+  notes: D-69 slice 5: imperative cached extractions two_pass; binding_strategy=two_pass
+  cases: 49  errors: 0  criteria: 1086  latency: 13.5s
+  avg scoring latency: 275ms / case
+
+  headline:
+    indeterminate             1016    93.6%  baseline=772 91.8%  delta=+244, +1.8 pp
+    unmapped_concept           660    60.8%  baseline=689 81.9%  delta=-29, -21.2 pp
+
+  layer-1 structured fields:
+    agreement: 88.3% (+7.4 pp)
+    coverage:  98.7% (+43.5 pp)
+
+  verdicts:
+    fail                                15  delta=-6
+    indeterminate                     1016  delta=+244
+    pass                                55  delta=+7
+
+  failure modes by reason:
+    unmapped_concept                   660  delta=-29
+    human_review_required              296  delta=+246
+    ok                                  70  delta=+1
+    unsupported_mood                    19  delta=+5
+    no_data                             14  delta=+9
+    unit_mismatch                       13  delta=+2
+    extractor_invariant_violation       11  delta=+9
+    ambiguous_criterion                  3  delta=+2
+
+  registered terminology surfaces:
+    total criteria: 26
+    resolved:       26 (100.0%)
+    still unmapped: 0
+    condition    resolved=11   unmapped=0
+    lab          resolved=14   unmapped=0
+    medication   resolved=1    unmapped=0
+
+  top unmapped surfaces:
+     12  measurement_threshold    body mass index
+     11  measurement_threshold    hemoglobin
+      9  measurement_threshold    platelet count
+      9  condition_absent         pregnancy or breastfeeding
+      7  condition_present        symptomatic pulmonary hypertension classified as WHO FC II or III
+      7  measurement_threshold    pulmonary vascular resistance
+      7  temporal_window          stable background therapy for PAH
+      7  condition_absent         diagnosis of pulmonary hypertension WHO Groups 2, 3, 4, or 5
+      7  condition_absent         diagnosis of HIV-associated PAH, PAH associated with portal hypertension, schistosomiasis-associated PAH, pulmonary veno-occlusive disease
+      7  condition_absent         uncontrolled systemic hypertension
+      7  measurement_threshold    liver and kidney function tests
+      7  condition_absent         currently enrolled in or have completed any other investigational product study
+      7  condition_absent         prior exposure to sotatercept or luspatercept or known allergic reaction
+      7  condition_absent         history of full pneumonectomy
+      7  condition_absent         known history of portal hypertension or chronic liver disease
+
+  baseline: b55783ff962f (baseline-v2: imperative + cached extractions + persisted labels)

@@ -1,0 +1,111 @@
+{
+  "run_id": "b55783ff962f",
+  "notes": "baseline-v2: imperative + cached extractions + persisted labels",
+  "n_cases": 49,
+  "n_errors": 0,
+  "scored_cases": 49,
+  "total_criteria": 841,
+  "total_scoring_latency_ms": 13600.0,
+  "avg_scoring_latency_ms": 277.55102040816325,
+  "verdict_counts": {
+    "fail": 21,
+    "indeterminate": 772,
+    "pass": 48
+  },
+  "reason_counts": {
+    "ambiguous_criterion": 1,
+    "extractor_invariant_violation": 2,
+    "human_review_required": 50,
+    "no_data": 5,
+    "ok": 69,
+    "unit_mismatch": 11,
+    "unmapped_concept": 689,
+    "unsupported_mood": 14
+  },
+  "kind_counts": {},
+  "unmapped_count": 689,
+  "unmapped_rate": 0.8192627824019025,
+  "indeterminate_count": 772,
+  "indeterminate_rate": 0.9179548156956005,
+  "binding_registered_total": 0,
+  "binding_registered_resolved": 0,
+  "binding_registered_unmapped": 0,
+  "binding_registered_by_kind": {},
+  "top_unmapped_surfaces": [
+    {
+      "surface": "intrahepatic cholangiocarcinoma",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "target lesion that met the recist 1.1 criteria",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "systemic treatment",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "severe liver dysfunction (child-pugh c grade) or significant jaundice or hepatic encephalopathy",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "severe and uncorrectable coagulation dysfunction",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "active hepatitis or severe infection",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "cachexia or multiple organ failure",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "body mass index",
+      "kind": "measurement_threshold",
+      "count": 7
+    },
+    {
+      "surface": "who/ecog ps",
+      "kind": "measurement_threshold",
+      "count": 7
+    },
+    {
+      "surface": "platelets",
+      "kind": "measurement_threshold",
+      "count": 5
+    },
+    {
+      "surface": "creatinine clearance",
+      "kind": "measurement_threshold",
+      "count": 5
+    },
+    {
+      "surface": "metformin",
+      "kind": "medication_present",
+      "count": 4
+    },
+    {
+      "surface": "bmi",
+      "kind": "measurement_threshold",
+      "count": 4
+    },
+    {
+      "surface": "serum potassium",
+      "kind": "measurement_threshold",
+      "count": 4
+    },
+    {
+      "surface": "who performance status",
+      "kind": "measurement_threshold",
+      "count": 4
+    }
+  ]
+}
