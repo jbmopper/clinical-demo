@@ -315,6 +315,26 @@ so they don't get lost between sessions.
   data. Re-validate against the real revision manifest after the
   first baseline regression run; if 95%+ of revisions land in
   iteration 1, drop to 1.
+- **Patient deceased-date guard.** The Synthea loader currently
+  parses `Patient.birthDate` / `gender` but does not carry
+  `deceasedDateTime` into the internal `Patient` model. Add a small
+  hard guard before public-demo claims: persist `deceased_date`, and
+  make scoring fail/skip with an explicit reason when the patient is
+  deceased before `as_of`. This is separate from note extraction; it
+  is structured FHIR hygiene and should be cheap to test.
+- **Patient-side note evidence extraction.** The architecture has
+  always said "light LLM for unstructured notes," but the current
+  implementation deliberately excludes `DocumentReference` text from
+  both the deterministic profile and the LLM matcher snapshot. Track
+  this as its own slice: parse `DocumentReference.content.attachment`
+  (`data` base64 and later `url`), ignore/generated-low-trust
+  `resource.text.div`, retrieve the smallest criterion-relevant note
+  snippets, require citations for any note-supported pass/fail, and
+  preserve `indeterminate` when note evidence is absent or ambiguous.
+  Validation needs its own golden note snippets: explicit evidence,
+  explicit absence, insufficient evidence, temporal/as-of cases,
+  note-vs-structured contradiction, and prompt injection in patient
+  narrative text.
 - *(Promoted to PLAN task 2.10 / D-69.)* The hand-curated
   vocab-expansion play that D-68 surfaced as highest-impact has
   been re-scoped around NLM terminology APIs. The ranked top-N
@@ -434,7 +454,7 @@ Architecture diagram (Mermaid + ASCII) lives in `description.md`.
 ## 6. Build plan with hour estimates
 
 Estimates assume focused work, alone, with normal blockers. Total budget is
-~80–120 hours across three phases plus a polish/buffer phase. If I'm running
+~100–150 hours across three phases plus a polish/buffer phase. If I'm running
 hot or slow, the *scope* gives, not the deadline — see §9.
 
 ### Phase 1 — Data + skeleton (target: end-to-end ugly path running)
@@ -469,7 +489,8 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. *Done — SvelteKit single-page app under `web/` (Svelte 5, TypeScript, static adapter). Hand-typed `lib/api.ts` over the four FastAPI routes (no codegen — surface is ~30 lines and `juliusm.com` will retype anyway). Single `+page.svelte` mounts patient + trial selectors from `/patients` and `/trials`, posts `/score` with toggles for orchestrator (`imperative` \| `graph`), critic loop, cached extraction, and `as_of`; renders the `ScorePairResult` as a header card (eligibility pill + verdict counts + extractor model / cost / token meta) and a list of `<CriterionRow>`s. Each row is a click-to-expand affordance: collapsed shows polarity + kind + source bullet + verdict pill; expanded shows the matcher's rationale, typed evidence rows (lab / condition / medication / demographics / trial_field / missing), and a `<details>` with the raw extracted criterion JSON for debugging. `<VerdictPill>` is a closed-enum component over `pass` \| `fail` \| `indeterminate` with a per-verdict palette. Health badge in the header probes `/health` on mount; catalog and score errors are surfaced inline as banners (no toasts, no router). API base URL defaults to `http://127.0.0.1:8000` and is overridable via `VITE_API_BASE`. Per **D-64** this lives here as a *dev rig only* — the production reviewer surface ports into the `juliusm.com` repo, so this directory carries no JS test runner, no build pipeline beyond `vite dev`, and no deploy adapter. `web/.gitignore` covers `node_modules` / `.svelte-kit` / `build` so the repo root stays Python-only. Decision D-64. | 8 |
 | 2.9 | Backend: minimal FastAPI endpoint that the Svelte UI calls; CORS; deploy plan for `juliusm.com`. *Done — `clinical_demo.api` package: `create_app()` factory exposing `GET /health`, `GET /patients`, `GET /trials`, `POST /score`. `/score` accepts `patient_id`, `nct_id`, optional `as_of` (defaults to today), `orchestrator` (`imperative` or `graph`), `critic_enabled`, `use_cached_extraction`, returns the existing `ScorePairResult` envelope verbatim. Loader helpers promoted out of `scripts/` into `api/loaders.py` (third caller threshold) with process-scope caches and a `CuratedDataMissing` exception for clean 503 mapping. Wide-open CORS for the v0 demo (lock down before public deploy). `scripts/serve.py` boots uvicorn. 12 new TestClient tests pin /health, listing endpoints, scoring round-trip, error mapping (404 unknown patient/trial, 503 missing curated data, 500 scorer raises, 422 missing field), and the orchestrator switch. Built ahead of 2.4-2.7 per user direction to bias toward end-to-end usability. 385 total passing.* | 3 |
 | 2.10 | **Terminology API bridge (D-69).** Replace the hand-curated trial-term bridge with NLM-backed resolution in slices. First slice: `clinical_demo.terminology` with a VSAC FHIR `$expand` client, `Settings.umls_api_key`, a live probe script, and offline parser/error-path tests. Follow-on slices: add RxNorm medication normalization, UMLS source-vocabulary search, a small cache of reviewed trial-side bindings, matcher wiring through `concept_lookup.py`, and an eval rerun comparing against the D-68 `unmapped_concept` baseline. | 10 |
-| **Phase 2 total** | | **~48 hr** |
+| 2.11 | **Patient structured-safety cleanup.** Carry `Patient.deceasedDateTime` through the Synthea loader/domain model and make scoring fail/skip explicitly when the patient is deceased before `as_of`. Keep it deterministic, cite the source field in evidence or API error detail, and test it before any public-demo run. | 1 |
+| **Phase 2 total** | | **~49 hr** |
 | **Exit criterion** | Full pipeline runs through LangGraph; baseline eval numbers committed; UI shows real results from real data. | |
 
 ### Phase 3 — Cost optimization, red-team, polish, writeup
@@ -481,12 +502,14 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 3.3 | Define and implement the routing policy; re-run eval; produce the "money slide" dashboard (cost vs. quality, before/after policy). | 4 |
 | 3.4 | Red-team set: prompt injection in patient narrative fields, adversarial negation, unit confusion, temporal traps, OOD criteria. ~15–20 cases. | 4 |
 | 3.5 | Run red-team set; document failures; implement at least the cheap mitigations (input sanitization, structured-output enforcement, suspicious-pattern detection). | 4 |
-| 3.6 | Reviewer UI v1: accept/override/flag with feedback persistence; basic auth gate (single-user is fine); polish. | 4 |
-| 3.7 | Deploy to `juliusm.com`; smoke test; capture a screen-recording fallback in case live demo dies. | 3 |
-| 3.8 | **Deployment readiness doc** — see §7. Includes a real revision pass. | 11 |
-| 3.9 | 20-minute presentation deck — see §8. | 4 |
-| 3.10 | Project README and repo polish (architecture diagram, eval results table, "how to reproduce", honest limitations section). | 3 |
-| **Phase 3 total** | | **~44 hr** |
+| 3.6 | **Patient note evidence slice.** Parse FHIR `DocumentReference` attachments (`content.attachment.data` first; `url` later), build a patient-note evidence index with provenance (resource id, date, section/header, excerpt/offset), retrieve only criterion-relevant snippets for free-text criteria, and add a patient-side LLM evidence step that can return `pass | fail | indeterminate` only with citations. Generated `resource.text.div` is display/fallback only, not high-trust clinical evidence. Validation set must cover explicit evidence, explicit absence, insufficient evidence, temporal/as-of boundaries, structured-vs-note contradiction, and prompt injection in note text. | 6 |
+| 3.7 | Reviewer UI v1: accept/override/flag with feedback persistence; basic auth gate (single-user is fine); polish. | 4 |
+| 3.8 | Deploy to `juliusm.com`; smoke test; capture a screen-recording fallback in case live demo dies. | 3 |
+| 3.9 | **Deployment readiness doc** — see §7. Includes a real revision pass. | 11 |
+| 3.10 | 20-minute presentation deck — see §8. | 4 |
+| 3.11 | Project README and repo polish (architecture diagram, eval results table, "how to reproduce", honest limitations section). | 3 |
+| 3.12 | **Performance pass (far-future / after correctness).** Profile end-to-end latency before optimizing. Candidate work: precompute/cache patient profiles and note indexes, parallelize per-criterion deterministic matches, batch or cache terminology resolution, avoid duplicate extraction/cache reads, stream API progress for long graph runs, tune LLM matcher/critic concurrency with rate-limit guards, and add latency/cost budgets to eval reports so speedups are measured rather than guessed. | 4 |
+| **Phase 3 total** | | **~54 hr** |
 | **Exit criterion** | Deployed demo, dashboard, writeup, deck. The whole story can be told in 20 minutes. | |
 
 ### Phase 4 — Buffer / dogfood
