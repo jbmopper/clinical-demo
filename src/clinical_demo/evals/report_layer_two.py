@@ -24,6 +24,13 @@ def render_layer_two(report: LayerTwoReport) -> str:
         f"  f1: {_pct(report.f1)}"
         f"  macro f1: {_pct(report.macro_f1)}"
     )
+    lines.append(
+        f"  overlap/containment partial_tp: {report.partial_true_positive}"
+        f"  lenient precision: {_pct(report.lenient_precision)}"
+        f"  recall: {_pct(report.lenient_recall)}"
+        f"  f1: {_pct(report.lenient_f1)}"
+        f"  macro f1: {_pct(report.macro_lenient_f1)}"
+    )
     if report.skipped_gold_unsupported:
         skipped = "  ".join(
             f"{kind}={count}" for kind, count in sorted(report.skipped_gold_unsupported.items())
@@ -34,13 +41,15 @@ def render_layer_two(report: LayerTwoReport) -> str:
         lines.append("")
         lines.append("  per entity type:")
         lines.append(
-            f"    {'type':<18} {'gold':>5} {'pred':>5} {'tp':>5}"
-            f"  {'precision':>9} {'recall':>8} {'f1':>8}"
+            f"    {'type':<18} {'gold':>5} {'pred':>5} {'tp':>5} {'part':>5}"
+            f"  {'precision':>9} {'recall':>8} {'f1':>8} {'lenient_f1':>11}"
         )
         for stat in sorted(report.by_type, key=lambda s: (-s.gold, s.type))[:_TYPE_LIMIT]:
             lines.append(
                 f"    {stat.type:<18} {stat.gold:>5} {stat.predicted:>5} {stat.true_positive:>5}"
+                f" {stat.partial_true_positive:>5}"
                 f"  {_pct(stat.precision):>9} {_pct(stat.recall):>8} {_pct(stat.f1):>8}"
+                f" {_pct(stat.lenient_f1):>11}"
             )
 
     if report.documents:
@@ -52,8 +61,15 @@ def render_layer_two(report: LayerTwoReport) -> str:
             lines.append(
                 f"    {doc.doc_id:<20} {doc.section:<9}"
                 f" gold={doc.gold:<4} pred={doc.predicted:<4} tp={doc.true_positive:<4}"
-                f" f1={_pct(doc.f1)}"
+                f" part={doc.partial_true_positive:<4} f1={_pct(doc.f1)}"
+                f" lenient_f1={_pct(doc.lenient_f1)}"
             )
+            if doc.partial_matches:
+                partial = ", ".join(
+                    f"{m.type}:{m.predicted_text} ~ {m.gold_text}"
+                    for m in doc.partial_matches[:_MISS_LIMIT]
+                )
+                lines.append(f"      partial: {partial}")
             if doc.false_negatives:
                 misses = ", ".join(
                     f"{m.type}:{m.text} x{m.count}" for m in doc.false_negatives[:_MISS_LIMIT]

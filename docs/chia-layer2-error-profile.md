@@ -13,6 +13,7 @@ This report exists to decide the next extraction move:
 
 - Prompt-only mention discipline.
 - Schema-level Chia graph extraction.
+- Boundary-aware diagnostics for exact-match misses.
 
 ## Retained 50-Document Run
 
@@ -170,10 +171,58 @@ right direction. It is not yet good enough to move on as "solved": `Scope`
 and `Observation` remain the core unresolved classes, and exact matching may
 be underrating partial span improvements.
 
+## Overlap / Containment Diagnostic: extractor-v0.3
+
+Command:
+
+```bash
+uv run python scripts/eval.py chia \
+  --sample-size 50 \
+  --sample-seed 20260430 \
+  --no-llm \
+  --output-json eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v03_overlap.json
+```
+
+Artifact:
+
+- Report:
+  `eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v03_overlap.json`
+
+Result:
+
+- Exact true positives: 300
+- Additional same-type partial matches: 159
+- Exact micro F1: 37.5%
+- Lenient micro precision: 68.0%
+- Lenient micro recall: 49.7%
+- Lenient micro F1: 57.4%
+- Lenient macro F1: 54.3%
+
+Largest exact-to-lenient gains:
+
+- `Value`: 35.5% -> 73.7% F1 (+38.2 pp), with 29 partial matches.
+- `Temporal`: 20.0% -> 51.1% F1 (+31.1 pp), with 14 partial matches.
+- `Condition`: 57.6% -> 81.0% F1 (+23.4 pp), with 63 partial matches.
+- `Person`: 26.7% -> 50.0% F1 (+23.3 pp), with 7 partial matches.
+- `Drug`: 52.9% -> 74.3% F1 (+21.4 pp), with 15 partial matches.
+
+Interpretation:
+
+The strict Chia surface metric is underrating boundary progress. A large share
+of the v0.3 misses are same-type spans that contain or substantially overlap
+the gold span, especially for values, temporal windows, and clinical nouns. This
+means the next prompt pass should avoid broad changes that optimize only exact
+surface matching.
+
+`Scope` is the important exception: it remains mostly a true missing-label
+problem, not merely a boundary problem. It moved from 2.2% exact F1 to only 6.5%
+lenient F1, with 2 partial matches across 79 gold spans. `Observation` also
+remains risky: lenient F1 moves from 2.0% to 11.8%, but the model still predicts
+70 observations for 32 gold spans.
+
 Recommended next step:
 
-Add a secondary overlap / containment diagnostic for layer 2 before another
-prompt revision. That will separate true misses from boundary-style misses
-and will show whether `Scope` is genuinely absent or mostly span-shifted.
-Then do a smaller v0.4 prompt tightening focused on `Observation` precision
-and `Scope` boundary examples, rerunning the same retained sample afterward.
+Do a smaller v0.4 prompt tightening focused on `Observation` precision and
+`Scope` recall/boundary examples, rerunning the same retained sample afterward.
+Do not move to schema-level Chia relation/equivalence output yet; the flat
+mention layer still has recoverable prompt-level misses.

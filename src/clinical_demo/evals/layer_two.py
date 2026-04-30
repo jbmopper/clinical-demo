@@ -34,6 +34,17 @@ class MentionKey(BaseModel):
     count: int = 1
 
 
+class MentionOverlap(BaseModel):
+    """Same-type non-exact mention pair for boundary diagnostics."""
+
+    type: str
+    gold_text: str
+    predicted_text: str
+    score: float
+    match_kind: str
+    count: int = 1
+
+
 class MentionTypeStats(BaseModel):
     """Per-entity-type precision / recall / F1."""
 
@@ -44,6 +55,11 @@ class MentionTypeStats(BaseModel):
     precision: float | None
     recall: float | None
     f1: float | None
+    partial_true_positive: int = 0
+    lenient_true_positive: int = 0
+    lenient_precision: float | None = None
+    lenient_recall: float | None = None
+    lenient_f1: float | None = None
 
 
 class LayerTwoDocumentReport(BaseModel):
@@ -58,8 +74,14 @@ class LayerTwoDocumentReport(BaseModel):
     precision: float | None
     recall: float | None
     f1: float | None
+    partial_true_positive: int = 0
+    lenient_true_positive: int = 0
+    lenient_precision: float | None = None
+    lenient_recall: float | None = None
+    lenient_f1: float | None = None
     skipped_gold_unsupported: dict[str, int] = Field(default_factory=dict)
     by_type: list[MentionTypeStats] = Field(default_factory=list)
+    partial_matches: list[MentionOverlap] = Field(default_factory=list)
     false_positives: list[MentionKey] = Field(default_factory=list)
     false_negatives: list[MentionKey] = Field(default_factory=list)
 
@@ -75,6 +97,12 @@ class LayerTwoReport(BaseModel):
     recall: float | None
     f1: float | None
     macro_f1: float | None
+    partial_true_positive: int = 0
+    lenient_true_positive: int = 0
+    lenient_precision: float | None = None
+    lenient_recall: float | None = None
+    lenient_f1: float | None = None
+    macro_lenient_f1: float | None = None
     by_type: list[MentionTypeStats] = Field(default_factory=list)
     skipped_gold_unsupported: dict[str, int] = Field(default_factory=dict)
 
@@ -112,6 +140,8 @@ def build_layer_two_report(documents: list[LayerTwoDocumentReport]) -> LayerTwoR
     gold_total = sum(d.gold for d in documents)
     predicted_total = sum(d.predicted for d in documents)
     tp_total = sum(d.true_positive for d in documents)
+    partial_tp_total = sum(d.partial_true_positive for d in documents)
+    lenient_tp_total = tp_total + partial_tp_total
     by_type_counts: dict[str, Counter[str]] = defaultdict(Counter)
     skipped: Counter[str] = Counter()
 
@@ -121,8 +151,10 @@ def build_layer_two_report(documents: list[LayerTwoDocumentReport]) -> LayerTwoR
             by_type_counts[stat.type]["gold"] += stat.gold
             by_type_counts[stat.type]["predicted"] += stat.predicted
             by_type_counts[stat.type]["true_positive"] += stat.true_positive
+            by_type_counts[stat.type]["partial_true_positive"] += stat.partial_true_positive
 
     f1_values = [d.f1 for d in documents if d.f1 is not None]
+    lenient_f1_values = [d.lenient_f1 for d in documents if d.lenient_f1 is not None]
 
     return LayerTwoReport(
         documents=documents,
@@ -133,12 +165,21 @@ def build_layer_two_report(documents: list[LayerTwoDocumentReport]) -> LayerTwoR
         recall=_rate(tp_total, gold_total),
         f1=_f1(tp_total, predicted_total, gold_total),
         macro_f1=(sum(f1_values) / len(f1_values) if f1_values else None),
+        partial_true_positive=partial_tp_total,
+        lenient_true_positive=lenient_tp_total,
+        lenient_precision=_rate(lenient_tp_total, predicted_total),
+        lenient_recall=_rate(lenient_tp_total, gold_total),
+        lenient_f1=_f1(lenient_tp_total, predicted_total, gold_total),
+        macro_lenient_f1=(
+            sum(lenient_f1_values) / len(lenient_f1_values) if lenient_f1_values else None
+        ),
         by_type=[
             _type_stats(
                 type_=type_,
                 gold=counts["gold"],
                 predicted=counts["predicted"],
                 true_positive=counts["true_positive"],
+                partial_true_positive=counts["partial_true_positive"],
             )
             for type_, counts in sorted(by_type_counts.items())
         ],
@@ -159,9 +200,12 @@ def _document_report(
     overlap = gold & predicted
     false_pos = predicted - gold
     false_neg = gold - predicted
+    partial_matches, partial_by_type = _partial_mention_matches(false_neg, false_pos)
     gold_total = gold.total()
     predicted_total = predicted.total()
     tp_total = overlap.total()
+    partial_tp_total = sum(match.count for match in partial_matches)
+    lenient_tp_total = tp_total + partial_tp_total
 
     types = sorted({type_ for type_, _ in gold} | {type_ for type_, _ in predicted})
     return LayerTwoDocumentReport(
@@ -174,6 +218,11 @@ def _document_report(
         precision=_rate(tp_total, predicted_total),
         recall=_rate(tp_total, gold_total),
         f1=_f1(tp_total, predicted_total, gold_total),
+        partial_true_positive=partial_tp_total,
+        lenient_true_positive=lenient_tp_total,
+        lenient_precision=_rate(lenient_tp_total, predicted_total),
+        lenient_recall=_rate(lenient_tp_total, gold_total),
+        lenient_f1=_f1(lenient_tp_total, predicted_total, gold_total),
         skipped_gold_unsupported=dict(sorted(skipped.items())),
         by_type=[
             _type_stats(
@@ -181,9 +230,11 @@ def _document_report(
                 gold=sum(count for (t, _), count in gold.items() if t == type_),
                 predicted=sum(count for (t, _), count in predicted.items() if t == type_),
                 true_positive=sum(count for (t, _), count in overlap.items() if t == type_),
+                partial_true_positive=partial_by_type[type_],
             )
             for type_ in types
         ],
+        partial_matches=partial_matches[:sample_limit],
         false_positives=_mention_samples(false_pos, sample_limit),
         false_negatives=_mention_samples(false_neg, sample_limit),
     )
@@ -227,6 +278,99 @@ def normalize_mention_text(value: str) -> str:
     return text.strip(" \t\r\n.,;:()[]{}\"'")
 
 
+def _partial_mention_matches(
+    false_neg: Counter[tuple[str, str]],
+    false_pos: Counter[tuple[str, str]],
+) -> tuple[list[MentionOverlap], Counter[str]]:
+    remaining_gold = false_neg.copy()
+    remaining_predicted = false_pos.copy()
+    matches: list[MentionOverlap] = []
+    by_type: Counter[str] = Counter()
+
+    while True:
+        best = _best_partial_pair(remaining_gold, remaining_predicted)
+        if best is None:
+            break
+        gold_key, predicted_key, score, match_kind = best
+        type_, gold_text = gold_key
+        _, predicted_text = predicted_key
+
+        remaining_gold[gold_key] -= 1
+        remaining_predicted[predicted_key] -= 1
+        if remaining_gold[gold_key] <= 0:
+            del remaining_gold[gold_key]
+        if remaining_predicted[predicted_key] <= 0:
+            del remaining_predicted[predicted_key]
+
+        matches.append(
+            MentionOverlap(
+                type=type_,
+                gold_text=gold_text,
+                predicted_text=predicted_text,
+                score=score,
+                match_kind=match_kind,
+            )
+        )
+        by_type[type_] += 1
+
+    matches.sort(key=lambda m: (-m.score, m.type, m.gold_text, m.predicted_text))
+    return matches, by_type
+
+
+def _best_partial_pair(
+    gold: Counter[tuple[str, str]],
+    predicted: Counter[tuple[str, str]],
+) -> tuple[tuple[str, str], tuple[str, str], float, str] | None:
+    best: tuple[tuple[str, str], tuple[str, str], float, str] | None = None
+    for gold_key in gold:
+        gold_type, gold_text = gold_key
+        for predicted_key in predicted:
+            predicted_type, predicted_text = predicted_key
+            if gold_type != predicted_type:
+                continue
+            score, match_kind = _mention_overlap_score(gold_text, predicted_text)
+            if score == 0:
+                continue
+            if best is None or score > best[2]:
+                best = (gold_key, predicted_key, score, match_kind)
+    return best
+
+
+def _mention_overlap_score(gold_text: str, predicted_text: str) -> tuple[float, str]:
+    if _contains_phrase(gold_text, predicted_text) or _contains_phrase(predicted_text, gold_text):
+        shorter = min(len(_mention_tokens(gold_text)), len(_mention_tokens(predicted_text)))
+        return (1.0 if shorter > 0 else 0.0), "contains"
+
+    gold_tokens = set(_mention_tokens(gold_text))
+    predicted_tokens = set(_mention_tokens(predicted_text))
+    if not gold_tokens or not predicted_tokens:
+        return 0.0, "none"
+
+    shared = gold_tokens & predicted_tokens
+    if len(shared) < 2:
+        return 0.0, "none"
+    score = max(len(shared) / len(gold_tokens), len(shared) / len(predicted_tokens))
+    if score < 0.6:
+        return 0.0, "none"
+    return score, "token_overlap"
+
+
+def _contains_phrase(needle: str, haystack: str) -> bool:
+    needle_tokens = _mention_tokens(needle)
+    haystack_tokens = _mention_tokens(haystack)
+    if not needle_tokens or not haystack_tokens:
+        return False
+    needle_len = len(needle_tokens)
+    return any(
+        haystack_tokens[index : index + needle_len] == needle_tokens
+        for index in range(0, len(haystack_tokens) - needle_len + 1)
+    )
+
+
+def _mention_tokens(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+|[<>]=?|=", value)
+
+
 def _mention_samples(counter: Counter[tuple[str, str]], limit: int) -> list[MentionKey]:
     return [
         MentionKey(type=type_, text=text, count=count)
@@ -240,7 +384,9 @@ def _type_stats(
     gold: int,
     predicted: int,
     true_positive: int,
+    partial_true_positive: int = 0,
 ) -> MentionTypeStats:
+    lenient_true_positive = true_positive + partial_true_positive
     return MentionTypeStats(
         type=type_,
         gold=gold,
@@ -249,6 +395,11 @@ def _type_stats(
         precision=_rate(true_positive, predicted),
         recall=_rate(true_positive, gold),
         f1=_f1(true_positive, predicted, gold),
+        partial_true_positive=partial_true_positive,
+        lenient_true_positive=lenient_true_positive,
+        lenient_precision=_rate(lenient_true_positive, predicted),
+        lenient_recall=_rate(lenient_true_positive, gold),
+        lenient_f1=_f1(lenient_true_positive, predicted, gold),
     )
 
 
@@ -271,6 +422,7 @@ __all__ = [
     "LayerTwoDocumentReport",
     "LayerTwoReport",
     "MentionKey",
+    "MentionOverlap",
     "MentionTypeStats",
     "build_layer_two_report",
     "normalize_mention_text",

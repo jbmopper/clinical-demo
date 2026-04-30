@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-from clinical_demo.data.chia import load_document
+from clinical_demo.data.chia import ChiaDocument, ChiaEntity, ChiaSpan, load_document
 from clinical_demo.evals.layer_two import (
     SUPPORTED_ENTITY_TYPES,
     build_layer_two_report,
@@ -53,6 +53,31 @@ def test_score_chia_document_counts_entity_type_surface_matches() -> None:
     assert report.false_negatives
 
 
+def test_score_chia_document_reports_partial_boundary_matches() -> None:
+    doc = ChiaDocument(
+        doc_id="boundary_doc",
+        source_text="Must be greater than or equal to 18 years old.",
+        entities={
+            "T1": ChiaEntity(
+                id="T1",
+                type="Value",
+                spans=[ChiaSpan(start=8, end=42)],
+                text="greater than or equal to 18 years",
+            )
+        },
+    )
+    extraction = _extraction([EntityMention(text="18 years", type="Value")])
+
+    report = score_chia_document(doc, extraction, nct_id="NCT-boundary", section="inclusion")
+
+    assert report.true_positive == 0
+    assert report.partial_true_positive == 1
+    assert report.lenient_true_positive == 1
+    assert report.lenient_f1 == 1.0
+    assert report.partial_matches[0].match_kind == "contains"
+    assert report.partial_matches[0].gold_text == "greater than or equal to 18 years"
+
+
 def test_build_layer_two_report_micro_and_macro_f1() -> None:
     doc = load_document(FIXTURE_DIR / "NCT00050349_inc.txt")
     first_two = [e for e in doc.entities.values() if e.type in SUPPORTED_ENTITY_TYPES][:2]
@@ -75,8 +100,13 @@ def test_build_layer_two_report_micro_and_macro_f1() -> None:
     assert report.gold == perfect.gold + empty.gold
     assert report.predicted == 2
     assert report.true_positive == 2
+    assert (
+        report.partial_true_positive == perfect.partial_true_positive + empty.partial_true_positive
+    )
     assert report.f1 is not None
     assert report.macro_f1 is not None
+    assert report.lenient_f1 is not None
+    assert report.macro_lenient_f1 is not None
     assert report.by_type
 
 
@@ -92,6 +122,7 @@ def test_render_layer_two_mentions_lowest_scoring_document() -> None:
     text = render_layer_two(build_layer_two_report([doc_report]))
 
     assert "Layer-2 Chia entity-mention report" in text
+    assert "overlap/containment" in text
     assert "NCT00050349_inc" in text
     assert "missed:" in text
 
