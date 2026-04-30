@@ -52,15 +52,19 @@ AI Forward Deployed Engineer interview.
 > bumped v1→v2 with an additive `ALTER TABLE` migration (D-67)
 > so persisted runs carry their labels; was a silent
 > layer-1-empty-report bug. Decisions D-67, D-68.
-> **393 tests passing** (Python; the UI is a thin
+> **425 tests passing** (Python; the UI is a thin
 > presentation layer over the API and is exercised manually).
 > Up next (PLAN task 2.10 / D-69): move the concept bridge from
-> hand-curated aliases toward NLM terminology APIs. The first slice
-> adds a VSAC FHIR `$expand` client, UMLS API-key plumbing, and an
-> offline fixture/test harness; matcher behavior still uses the
-> existing alias tables until a resolver is wired through
-> `concept_lookup.py`. Next slices add RxNorm/UMLS lookup and cache
-> resolved trial-side bindings before re-running the eval harness.
+> hand-curated aliases toward NLM terminology APIs. Slices 1–2
+> are in: a VSAC FHIR `$expand` client with UMLS API-key plumbing
+> and an offline fixture/test harness, plus an on-disk
+> `TerminologyCache` with auto-invalidating envelope fingerprint
+> and atomic writes (mirrors the D-66 extractor cache discipline)
+> so eval re-runs don't pay the NLM round-trip per pair. Matcher
+> behavior still uses the existing alias tables until a resolver
+> is wired through `concept_lookup.py`. Next slices add
+> RxNorm/UMLS lookup, then wire the resolver behind the
+> `binding_strategy` switch, then re-run the eval harness.
 > Then layer-2 (Chia F1) + layer-3 (LLM-as-judge) eval layers. The
 > UI gets ported into `juliusm.com` for the public-facing demo.
 

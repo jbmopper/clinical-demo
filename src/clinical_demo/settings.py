@@ -12,6 +12,7 @@ can swap the cached instance via `set_settings_for_test`.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import AliasChoices, Field, SecretStr
@@ -52,6 +53,14 @@ class Settings(BaseSettings):
     # hand-curated lookup path; accepting inactive strategy names
     # would make eval runs look terminology-backed when they are not.
     binding_strategy: BindingStrategy = "alias"
+
+    # Where the terminology cache (D-69 follow-on slice 2) writes
+    # resolved bindings. Lives under `data/cache/` which is already
+    # gitignored, so cached VSAC/RxNorm/UMLS results don't pollute
+    # commits but do persist across local runs and shells. Override
+    # via `TERMINOLOGY_CACHE_DIR` for tests or for sharing a cache
+    # between checkouts.
+    terminology_cache_dir: Path = Path("data/cache/terminology")
 
     langfuse_public_key: SecretStr | None = Field(default=None)
     langfuse_secret_key: SecretStr | None = Field(default=None)

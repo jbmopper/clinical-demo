@@ -17,6 +17,12 @@ the OID/RxCUI emission for arms B and C.
 
 from __future__ import annotations
 
+from clinical_demo.terminology.cache import (
+    StoredVSACExpansion,
+    TerminologyCache,
+    cache_path_for_vsac,
+    vsac_envelope_fingerprint,
+)
 from clinical_demo.terminology.vsac_client import (
     VSACClient,
     VSACError,
@@ -24,7 +30,11 @@ from clinical_demo.terminology.vsac_client import (
 )
 
 __all__ = [
+    "StoredVSACExpansion",
+    "TerminologyCache",
     "VSACClient",
     "VSACError",
     "VSACExpansion",
+    "cache_path_for_vsac",
+    "vsac_envelope_fingerprint",
 ]

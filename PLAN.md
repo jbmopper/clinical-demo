@@ -19,52 +19,63 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** First baseline regression run (PLAN task
-  2.7) plus an indeterminacy diagnostic answering "why is so
-  much of the result set `indeterminate`?" Fresh extraction over
-  all 30 curated trials under the D-66 cache scheme (570
-  criteria, $0.067, ~18 min wall) feeds two cache-warm eval
-  runs against the 49-pair seed: imperative
-  (`b55783ff962f`, ~14s scoring) and graph + critic
-  (`ae7ac16936b8`, ~5 min). Both runs persisted to
-  `eval/runs.sqlite`; layer-1 JSON reports + pretty run
-  summaries + `SUMMARY.md` + `INDETERMINACY.md` snapshotted to
-  `eval/baselines/2026-04-21/`. Headline numbers: layer-1
-  overall agreement 81.0%, coverage 55.3%, identical between
-  orchestrators (the critic acts on rollup, not per-criterion
-  structured dispatch — non-trivial finding worth the
-  side-by-side). All 8 layer-1 disagreements are
-  matcher-correct + seed-partial-label artifacts. Per-criterion
-  diagnostic: 92% of all 841 verdicts are `indeterminate`, 89%
-  of those are `unmapped_concept`; conditions dominate (73% of
-  unmapped) over labs (17%) over medications (6%); top
-  investment is concept-vocabulary expansion. Side fix landed:
-  `eval/runs.sqlite` schema bumped v1→v2 with an additive
-  `ALTER TABLE` migration to persist
-  `expected_structured` / `free_text_review_status` per case
-  so layer-1+ analyses operate on a self-contained persisted
-  run (was a silent layer-1-empty-report bug before). 2 new
-  store tests + 1 existing test edited for the version bump.
-  Decisions **D-67** (store migration) and **D-68** (baseline
-  shape).
-  Previous: D-66 — matcher soft-fail on extractor invariant
-  violations + auto-invalidating cache key. D-65 — promote LLM
-  token caps into Settings; graceful length-truncation
-  handling.
-- **Next:** PLAN task 2.10 — move the trial-term → patient-code
-  bridge from hand-curated aliases toward NLM terminology APIs
-  (**D-69**). First slice: add VSAC FHIR `$expand` client,
-  UMLS API-key settings, a live probe script, and offline tests.
-  Follow-on slices: add RxNorm/UMLS lookup, cache reviewed
-  trial-side bindings, wire `concept_lookup.py`, then re-run the
-  eval harness to measure the `unmapped_concept` delta. Then PLAN
-  tasks 2.5 (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then
-  3.x reliability + cost work and the `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (~107 src files); `ruff check` +
-  `ruff format` clean; `pytest` 393 passing, 1 pre-existing
-  failure deselected (see follow-ups). The reviewer UI is a
-  thin presentation layer over the API and is exercised
-  manually; no JS test runner in this repo on purpose
+- **Last completed:** PLAN task 2.10 / **D-69** slice 2 — on-disk
+  terminology cache. New `clinical_demo.terminology.cache` module
+  (`TerminologyCache`, `StoredVSACExpansion`,
+  `cache_path_for_vsac`, `vsac_envelope_fingerprint`) mirroring
+  the D-40/D-66 extractor-cache discipline: filename pattern is
+  `vsac.<oid>.<filter_tag>.<schema_fp>.json`, schema fingerprint
+  is an 8-hex SHA over `StoredVSACExpansion.model_json_schema()`
+  so any envelope-shape change auto-orphans prior entries
+  silently, and writes are atomic via temp file + `os.replace`.
+  Public surface includes a `vsac_expansion_or_fetch(oid,
+  fetch=...)` convenience that takes a no-arg fetcher closure so
+  the cache stays decoupled from `VSACClient` (no fetch ↔ cache
+  import cycle as the API surface grows). Settings gain
+  `terminology_cache_dir: Path = Path("data/cache/terminology")`
+  (the default lives under the already-gitignored `data/cache/`
+  root); env-overridable via `TERMINOLOGY_CACHE_DIR`. 14 new
+  offline tests cover round-trip (incl. frozenset preservation),
+  miss → None, lazy root creation, filename pinning, `urn:oid:`
+  prefix dedup, filter-discriminates-key (path + end-to-end), 8-
+  hex fingerprint stability + change-on-schema-edit, "old envelope
+  under different fingerprint is invisible" auto-invalidation
+  proof, `_or_fetch` happy path / fetcher-exception passthrough /
+  filter discrimination, no leftover `.tmp` after success, loud
+  Pydantic `ValidationError` on corrupt JSON, settings default +
+  env override. No matcher wiring yet — that lands in slice 3
+  with the `binding_strategy` switch.
+  Previous: D-69 slice 1 — VSAC FHIR `$expand` client +
+  `UMLS_API_KEY` plumbing + offline tests + live probe script.
+  Before that: D-67 (eval-store v1→v2 migration) and D-68 (first
+  baseline regression with indeterminacy diagnostic): layer-1
+  agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
+  `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
+- **Next:** PLAN task 2.10 / D-69 slice 3 — RxNorm + UMLS
+  search clients (same shape as VSAC: offline tests + recorded
+  fixture + `scripts/probe_*` script), then slice 4 — wire
+  `lookup_condition` / `lookup_lab` / `lookup_medication` behind
+  a `Settings.binding_strategy` switch (terminology-backed mode
+  added to the `BindingStrategy` literal, with the alias path
+  preserved as a fallback during migration). Two compounding
+  cleanups to slot before slice 5's eval re-run: extractor
+  compound-criterion routing prompt patch (50–100 verdicts move
+  from silent `unmapped_concept` to `human_review_required`) and
+  wiring structured CT.gov age/sex fields into the extractor
+  (layer-1 coverage 55% → ~95%). Slice 5: re-run the eval
+  harness against the D-68 baseline and report
+  `unmapped_concept` rate, agreement / coverage / binding
+  precision deltas, latency, failure modes. Then PLAN tasks 2.5
+  (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then 3.x
+  reliability + cost work and the `juliusm.com` deploy.
+- **Gates at HEAD:** `mypy` clean (105 src files; mypy's count
+  is `src` + `tests` together — the prior ~107 was a rough
+  pre-VSAC reading); `ruff check` + `ruff format` clean;
+  `pytest` 425 passing (408 → 425; +17 cache tests; the prior
+  PLAN's 393 was stale from before the D-69 slice 1 VSAC tests
+  landed), 1 pre-existing failure deselected (see follow-ups).
+  The reviewer UI is a thin presentation layer over the API and is
+  exercised manually; no JS test runner in this repo on purpose
   (per D-64 it's not the production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
@@ -1531,19 +1542,36 @@ Current implementation:
 - **Live probe script** at `scripts/probe_vsac.py` for checking a
   real key and refreshing the recorded fixture.
 - **Offline tests** around the VSAC parser and error paths.
+- **Terminology cache** (slice 2) at
+  `clinical_demo.terminology.cache`. File-backed
+  `TerminologyCache` keyed by `(oid, system_filter,
+  envelope_schema_fp)`; filename pattern
+  `vsac.<oid>.<filter_tag>.<schema_fp>.json`. Mirrors the
+  D-40/D-66 extractor-cache discipline: an 8-hex SHA over the
+  on-disk envelope's JSON schema auto-orphans every prior entry
+  on any envelope rev, writes are atomic via temp file +
+  `os.replace`, and reads on a corrupt file fail loud (Pydantic
+  `ValidationError`) rather than silently re-fetching. Public
+  surface includes a `vsac_expansion_or_fetch(oid, fetch=...)`
+  convenience that takes a no-arg fetcher closure so the cache
+  stays decoupled from `VSACClient` (no fetch ↔ cache import
+  cycle as the API surface grows). Settings field
+  `terminology_cache_dir: Path = Path("data/cache/terminology")`
+  defaults under the already-gitignored `data/cache/` root and
+  is overridable via `TERMINOLOGY_CACHE_DIR`. 17 offline tests
+  pin the round-trip, key discrimination, fingerprint behavior,
+  atomicity, and settings wiring.
 
 Follow-on work:
 
 1. Add RxNorm lookup for medication ingredients/classes and UMLS
    search for source vocabularies not covered by a known VSAC value
    set.
-2. Add a small terminology cache for resolved trial-side bindings
-   so scoring does not call external APIs per patient × trial ×
-   criterion.
-3. Wire `lookup_condition`, `lookup_lab`, and `lookup_medication`
+2. Wire `lookup_condition`, `lookup_lab`, and `lookup_medication`
    through the resolved bindings while preserving the existing
-   alias path as a fallback during migration.
-4. Re-run the eval harness and compare against the D-68
+   alias path as a fallback during migration. This is the slice
+   that promotes the `binding_strategy` literal beyond `alias`.
+3. Re-run the eval harness and compare against the D-68
    `unmapped_concept` baseline; report `unmapped_concept` rate,
    agreement/coverage deltas, binding precision on a hand-checked
    sample, latency, and failure modes.
