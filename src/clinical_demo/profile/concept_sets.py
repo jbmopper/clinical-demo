@@ -1,5 +1,10 @@
 """Curated concept sets for the matcher and the eval seed labeler.
 
+**Status: legacy curated code lists.** D-69 adds the first NLM API
+client for VSAC value-set expansion, but these constants remain the
+matcher-wired source of truth until a terminology resolver is wired
+through `concept_lookup.py` and the eval harness.
+
 A `ConceptSet` is a *named* group of coded concepts (SNOMED conditions,
 LOINC labs, RxNorm meds). The matcher uses these to answer questions
 like "does the patient have any T2DM-coded condition" without

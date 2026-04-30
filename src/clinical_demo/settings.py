@@ -12,9 +12,12 @@ can swap the cached instance via `set_settings_for_test`.
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BindingStrategy = Literal["alias"]
 
 
 class Settings(BaseSettings):
@@ -35,6 +38,20 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = Field(default=None)
     anthropic_api_key: SecretStr | None = Field(default=None)
     google_api_key: SecretStr | None = Field(default=None)
+
+    # NLM UTS API key, used as the password against
+    # https://uts.nlm.nih.gov for VSAC, RxNorm, and UMLS REST calls.
+    # See PLAN.md §12 D-69 for the terminology-API comparison this
+    # unblocks. Optional: the current hand-curated alias path does
+    # not need it, so a fresh checkout still runs without an NLM
+    # account.
+    umls_api_key: SecretStr | None = Field(default=None)
+
+    # Reserved for future terminology-binding experiments. Only
+    # `alias` is accepted today because the matcher still uses the
+    # hand-curated lookup path; accepting inactive strategy names
+    # would make eval runs look terminology-backed when they are not.
+    binding_strategy: BindingStrategy = "alias"
 
     langfuse_public_key: SecretStr | None = Field(default=None)
     langfuse_secret_key: SecretStr | None = Field(default=None)

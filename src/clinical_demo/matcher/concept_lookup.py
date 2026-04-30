@@ -1,5 +1,10 @@
 """Surface-form → ConceptSet lookup tables for the matcher v0.
 
+**Status: legacy alias fallback.** D-69 starts the move to NLM
+terminology APIs with a VSAC client, but this module is still the
+only matcher-wired surface-form lookup path. API-backed binding
+should replace or wrap these functions explicitly when it lands.
+
 The extractor produces criterion payloads with surface text like
 `"hba1c"`, `"type 2 diabetes"`, `"metformin"`. The matcher needs to
 convert those into coded concept sets so it can query the
@@ -13,9 +18,11 @@ tables, not with any NLP/LLM mapping:
   matcher returns `indeterminate`. This is the *honest* signal:
   the matcher saying "I don't know" is more useful than a fuzzy
   match that pretends to know.
-- Phase 2 (or beyond) is where we'd plug in UMLS/RxNorm normalization
-  or an embedding-based match. The shape of those upgrades is to
-  replace the lookup function, not the schema around it.
+- The D-68 baseline diagnostic surfaced `unmapped_concept` as the
+  single largest source of indeterminacy (89% of all indeterminate
+  verdicts on the 2026-04-21 baseline). D-69 begins replacing this
+  hand-built bridge with NLM terminology APIs; until that resolver is
+  wired, these aliases remain the runtime behavior.
 """
 
 from __future__ import annotations

@@ -51,10 +51,15 @@
   violations + auto-invalidating cache key. D-65 — promote LLM
   token caps into Settings; graceful length-truncation
   handling.
-- **Next:** PLAN tasks 2.5 (layer-2 Chia F1), 2.6 (layer-3 LLM
-  judge), and the concept-vocabulary expansion called out by
-  the D-68 diagnostic (track in §6 follow-ups). Then 3.x
-  reliability + cost work and the `juliusm.com` deploy.
+- **Next:** PLAN task 2.10 — move the trial-term → patient-code
+  bridge from hand-curated aliases toward NLM terminology APIs
+  (**D-69**). First slice: add VSAC FHIR `$expand` client,
+  UMLS API-key settings, a live probe script, and offline tests.
+  Follow-on slices: add RxNorm/UMLS lookup, cache reviewed
+  trial-side bindings, wire `concept_lookup.py`, then re-run the
+  eval harness to measure the `unmapped_concept` delta. Then PLAN
+  tasks 2.5 (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then
+  3.x reliability + cost work and the `juliusm.com` deploy.
 - **Gates at HEAD:** `mypy` clean (~107 src files); `ruff check` +
   `ruff format` clean; `pytest` 393 passing, 1 pre-existing
   failure deselected (see follow-ups). The reviewer UI is a
@@ -84,21 +89,14 @@ so they don't get lost between sessions.
   data. Re-validate against the real revision manifest after the
   first baseline regression run; if 95%+ of revisions land in
   iteration 1, drop to 1.
-- **Concept-vocabulary expansion (highest-impact next play
-  surfaced by D-68 diagnostic).** 89% of all `indeterminate`
-  verdicts in the 2026-04-21 baseline are `unmapped_concept`;
-  conditions are 73% of those, labs 17%, meds 6%. Concrete
-  surface forms to add to `concept_lookup.py`: top conditions
-  (`intrahepatic cholangiocarcinoma`, `pregnant or lactating`,
-  `active hepatitis`, `homozygous familial hypercholesterolemia`),
-  top medications (`metformin`, `insulin`, `glp-1 agonist`,
-  `sglt2 inhibitor`), top labs (`BMI`, `hemoglobin`, `platelets`,
-  `creatinine clearance`, `ECOG performance status`). See
-  `eval/baselines/2026-04-21/INDETERMINACY.md` for ranked top-N
-  lists and the SNOMED/RxNorm/LOINC lookup work the next
-  vocab-expansion pass should chase. Estimated impact: 200-300
-  verdicts move out of `unmapped_concept`, hypertension slice
-  goes from 0/14 covered to plausibly 8-10/14.
+- *(Promoted to PLAN task 2.10 / D-69.)* The hand-curated
+  vocab-expansion play that D-68 surfaced as highest-impact has
+  been re-scoped around NLM terminology APIs. The ranked top-N
+  surface forms in
+  `eval/baselines/2026-04-21/INDETERMINACY.md` are the input list
+  for VSAC/RxNorm/UMLS binding work; the current slice starts with
+  VSAC expansion support and keeps runtime matcher behavior on the
+  existing aliases until the resolver is wired and measured.
 - **Extractor compound-criterion routing.** Several "top
   unmapped condition" entries are actually compound clauses the
   extractor crammed into `condition_text` instead of routing to
@@ -260,9 +258,10 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 2.5 | Layer 2 eval — reference-based: criterion extraction F1 vs. Chia annotations. | 4 |
 | 2.6 | Layer 3 eval — LLM-as-judge: rubric, prompt, calibration against ~30–50 hand-graded examples; report inter-rater agreement. | 6 |
 | 2.7 | First baseline regression run; commit numbers to repo as `eval/baselines/`. *Done — fresh extraction over all 30 curated trials under the D-66 cache scheme (570 criteria, $0.067, ~18 min wall), then two eval runs against the 49-pair seed: imperative (`b55783ff962f`, ~14s scoring on cache-warm) and graph + critic (`ae7ac16936b8`, ~5 min). Both runs written to `eval/runs.sqlite`; layer-1 reports + pretty run summaries snapshotted under `eval/baselines/2026-04-21/` with a `SUMMARY.md` (provenance + per-field numbers + slice rollup) and an `INDETERMINACY.md` (per-criterion diagnostic answering "why so much indeterminacy"). Headline: layer-1 overall agreement 81.0%, coverage 55.3%, and identical between orchestrators (critic acts on rollup/rationale, not per-criterion structured-field dispatch). All 8 layer-1 disagreements are matcher-correct + seed-partial-label artifacts (mechanical labeler scored `min_age` independently of `max_age`). 0 `pass` eligibility verdicts across 49 pairs is real — synthea cohort × these specific trials don't align well, and the rollup is correctly conservative. Diagnostic finding: 92% of all 841 per-criterion verdicts are `indeterminate`, of which 89% are `unmapped_concept`; conditions dominate (73% of unmapped) over labs (17%) over medications (6%); top investment is concept-vocabulary expansion (D-67). Side fix landed in this task: store schema bumped v1→v2 with an additive `ALTER TABLE` migration to persist `expected_structured` and `free_text_review_status` per case, so layer-1+ analyses run from a self-contained persisted run instead of re-loading the seed file (was a silent layer-1-empty-report bug). 2 new store tests (v1→v2 migration, label round-trip), 1 existing test edited for the version bump. 393 total passing. Decisions D-67, D-68.* | 2 |
-| 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. *Done — SvelteKit single-page app under `web/` (Svelte 5, TypeScript, static adapter). Hand-typed `lib/api.ts` over the four FastAPI routes (no codegen — surface is ~30 lines and `juliusm.com` will retype anyway). Single `+page.svelte` mounts patient + trial selectors from `/patients` and `/trials`, posts `/score` with toggles for orchestrator (`imperative` \| `graph`), critic loop, cached extraction, and `as_of`; renders the `ScorePairResult` as a header card (eligibility pill + verdict counts + extractor model / cost / token meta) and a list of `<CriterionRow>`s. Each row is a click-to-expand affordance: collapsed shows polarity + kind + source bullet + verdict pill; expanded shows the matcher's rationale, typed evidence rows (lab / condition / medication / demographics / trial_field / missing), and a `<details>` with the raw extracted criterion JSON for debugging. `<VerdictPill>` is a closed-enum component over `pass` \| `fail` \| `indeterminate` with a per-verdict palette. Health badge in the header probes `/health` on mount; catalog and score errors are surfaced inline as banners (no toasts, no router). API base URL defaults to `http://127.0.0.1:8000` and is overridable via `VITE_API_BASE`. Per **D-69** this lives here as a *dev rig only* — the production reviewer surface ports into the `juliusm.com` repo, so this directory carries no JS test runner, no build pipeline beyond `vite dev`, and no deploy adapter. `web/.gitignore` covers `node_modules` / `.svelte-kit` / `build` so the repo root stays Python-only. Decision D-69. | 8 |
+| 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. *Done — SvelteKit single-page app under `web/` (Svelte 5, TypeScript, static adapter). Hand-typed `lib/api.ts` over the four FastAPI routes (no codegen — surface is ~30 lines and `juliusm.com` will retype anyway). Single `+page.svelte` mounts patient + trial selectors from `/patients` and `/trials`, posts `/score` with toggles for orchestrator (`imperative` \| `graph`), critic loop, cached extraction, and `as_of`; renders the `ScorePairResult` as a header card (eligibility pill + verdict counts + extractor model / cost / token meta) and a list of `<CriterionRow>`s. Each row is a click-to-expand affordance: collapsed shows polarity + kind + source bullet + verdict pill; expanded shows the matcher's rationale, typed evidence rows (lab / condition / medication / demographics / trial_field / missing), and a `<details>` with the raw extracted criterion JSON for debugging. `<VerdictPill>` is a closed-enum component over `pass` \| `fail` \| `indeterminate` with a per-verdict palette. Health badge in the header probes `/health` on mount; catalog and score errors are surfaced inline as banners (no toasts, no router). API base URL defaults to `http://127.0.0.1:8000` and is overridable via `VITE_API_BASE`. Per **D-64** this lives here as a *dev rig only* — the production reviewer surface ports into the `juliusm.com` repo, so this directory carries no JS test runner, no build pipeline beyond `vite dev`, and no deploy adapter. `web/.gitignore` covers `node_modules` / `.svelte-kit` / `build` so the repo root stays Python-only. Decision D-64. | 8 |
 | 2.9 | Backend: minimal FastAPI endpoint that the Svelte UI calls; CORS; deploy plan for `juliusm.com`. *Done — `clinical_demo.api` package: `create_app()` factory exposing `GET /health`, `GET /patients`, `GET /trials`, `POST /score`. `/score` accepts `patient_id`, `nct_id`, optional `as_of` (defaults to today), `orchestrator` (`imperative` or `graph`), `critic_enabled`, `use_cached_extraction`, returns the existing `ScorePairResult` envelope verbatim. Loader helpers promoted out of `scripts/` into `api/loaders.py` (third caller threshold) with process-scope caches and a `CuratedDataMissing` exception for clean 503 mapping. Wide-open CORS for the v0 demo (lock down before public deploy). `scripts/serve.py` boots uvicorn. 12 new TestClient tests pin /health, listing endpoints, scoring round-trip, error mapping (404 unknown patient/trial, 503 missing curated data, 500 scorer raises, 422 missing field), and the orchestrator switch. Built ahead of 2.4-2.7 per user direction to bias toward end-to-end usability. 385 total passing.* | 3 |
-| **Phase 2 total** | | **~38 hr** |
+| 2.10 | **Terminology API bridge (D-69).** Replace the hand-curated trial-term bridge with NLM-backed resolution in slices. First slice: `clinical_demo.terminology` with a VSAC FHIR `$expand` client, `Settings.umls_api_key`, a live probe script, and offline parser/error-path tests. Follow-on slices: add RxNorm medication normalization, UMLS source-vocabulary search, a small cache of reviewed trial-side bindings, matcher wiring through `concept_lookup.py`, and an eval rerun comparing against the D-68 `unmapped_concept` baseline. | 10 |
+| **Phase 2 total** | | **~48 hr** |
 | **Exit criterion** | Full pipeline runs through LangGraph; baseline eval numbers committed; UI shows real results from real data. | |
 
 ### Phase 3 — Cost optimization, red-team, polish, writeup
@@ -1506,6 +1505,76 @@ because we wrote down the 55% and what it means. FDE-relevant:
 "how much of this system actually works, on what slices, and
 where would a fix produce the most movement" is exactly what a
 client conversation runs on.
+
+### D-69. Move concept binding toward NLM terminology APIs
+**Picked:** start replacing hand-curated surface-form aliases and
+`ConceptSet` constants with NLM terminology APIs, but land it in
+small, measurable slices. The first slice is a VSAC FHIR `$expand`
+client, UMLS API-key plumbing, a live probe script, and offline
+tests around a recorded diabetes expansion fixture.
+
+The immediate goal is not to make LangGraph compare multiple
+terminology systems. It is simpler: resolve trial-side clinical
+terms into auditable SNOMED/LOINC/RxNorm code sets, then let the
+existing matcher compare those codes against patient FHIR facts.
+
+Current implementation:
+
+- **VSAC FHIR API client** in `clinical_demo.terminology`. Given a
+  value-set OID, it expands the value set into the same
+  matcher-shaped `ConceptSet` envelope used by the hand-curated
+  constants today. It records the VSAC-reported version so future
+  eval runs can pin terminology provenance.
+- **Settings plumbing** via `UMLS_API_KEY`. Fresh checkouts still
+  run without an NLM account because the matcher remains on the
+  alias path until the resolver is wired.
+- **Live probe script** at `scripts/probe_vsac.py` for checking a
+  real key and refreshing the recorded fixture.
+- **Offline tests** around the VSAC parser and error paths.
+
+Follow-on work:
+
+1. Add RxNorm lookup for medication ingredients/classes and UMLS
+   search for source vocabularies not covered by a known VSAC value
+   set.
+2. Add a small terminology cache for resolved trial-side bindings
+   so scoring does not call external APIs per patient × trial ×
+   criterion.
+3. Wire `lookup_condition`, `lookup_lab`, and `lookup_medication`
+   through the resolved bindings while preserving the existing
+   alias path as a fallback during migration.
+4. Re-run the eval harness and compare against the D-68
+   `unmapped_concept` baseline; report `unmapped_concept` rate,
+   agreement/coverage deltas, binding precision on a hand-checked
+   sample, latency, and failure modes.
+
+**Rejected (a):** expand the alias dict by hand as the main plan.
+It is useful as a fallback and smoke-test baseline, but it is not a
+realistic vocabulary strategy once the project has access to UMLS,
+VSAC, RxNorm, and source vocabularies.
+
+**Rejected (b):** load the full UMLS distribution into the runtime
+path or package it into Lambda. The app only needs a small set of
+trial-side bindings at scoring time; API-backed resolution plus a
+small cache is a better fit for the current scale.
+
+**Rejected (c):** accept inactive strategy names in configuration.
+`Settings.binding_strategy` currently accepts only `alias`; future
+terminology-backed modes should be wired, tested, and recorded
+before their config values are accepted.
+
+**Rejected (d):** stand up Snowstorm or another self-hosted
+terminology server for this slice. VSAC and NLM APIs are enough to
+start replacing the hand-built bridge; self-hosting can wait until
+we have evidence that API-backed resolution is the bottleneck.
+
+**Why:** the D-68 baseline diagnostic identified `unmapped_concept`
+as the single largest failure mode (89% of all indeterminates). The
+right next move is to use the terminology systems designed for this
+problem, but to keep the matcher auditable: trial text resolves to
+versioned code sets, patient data stays coded FHIR facts, and the
+verdict comes from code-set intersection plus the existing
+date/value/unit logic.
 
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.

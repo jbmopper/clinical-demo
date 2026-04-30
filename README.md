@@ -54,10 +54,15 @@ AI Forward Deployed Engineer interview.
 > layer-1-empty-report bug. Decisions D-67, D-68.
 > **393 tests passing** (Python; the UI is a thin
 > presentation layer over the API and is exercised manually).
-> Up next: layer-2 (Chia F1) + layer-3 (LLM-as-judge) eval
-> layers, and the concept-vocabulary expansion called out by
-> the diagnostic. The UI gets ported into `juliusm.com` for the
-> public-facing demo.
+> Up next (PLAN task 2.10 / D-69): move the concept bridge from
+> hand-curated aliases toward NLM terminology APIs. The first slice
+> adds a VSAC FHIR `$expand` client, UMLS API-key plumbing, and an
+> offline fixture/test harness; matcher behavior still uses the
+> existing alias tables until a resolver is wired through
+> `concept_lookup.py`. Next slices add RxNorm/UMLS lookup and cache
+> resolved trial-side bindings before re-running the eval harness.
+> Then layer-2 (Chia F1) + layer-3 (LLM-as-judge) eval layers. The
+> UI gets ported into `juliusm.com` for the public-facing demo.
 
 ## What it is (one paragraph)
 
