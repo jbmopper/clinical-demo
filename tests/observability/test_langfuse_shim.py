@@ -201,6 +201,11 @@ def test_application_exceptions_propagate_through_traced(
 def test_settings_helper_detects_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Otherwise `delenv` below does not clear configuration: pydantic
+    # still reads LANGFUSE_* from `.env` on disk (dev machines / CI with secrets file).
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+    monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-x")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-x")
     get_settings.cache_clear()
