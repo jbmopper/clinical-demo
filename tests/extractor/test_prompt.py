@@ -31,7 +31,12 @@ def test_prompt_version_is_a_nonempty_string():
 def test_system_prompt_contains_load_bearing_phrases():
     """Lightweight regression guard: the system prompt's hard-rule
     bullets should survive accidental edits. We don't snapshot the
-    whole text (too brittle), just the must-have phrases."""
+    whole text (too brittle), just the must-have phrases.
+
+    Rule 13 (single-concept typed slots) is on this list because it
+    is the load-bearing fix for the D-68 baseline's compound-clause
+    indeterminacy class; an accidental rewrite that drops it would
+    silently regress `unmapped_concept` rate."""
     must_haves = [
         "Faithful to the source",
         "Atomicity",
@@ -41,9 +46,45 @@ def test_system_prompt_contains_load_bearing_phrases():
         "Lower-case surface forms",
         "Units verbatim",
         "Exactly one payload per row",
+        "Single-concept typed slots",
     ]
     for phrase in must_haves:
         assert phrase in SYSTEM_PROMPT, f"missing rule: {phrase!r}"
+
+
+def test_prompt_version_is_v0_2_or_later():
+    """Pinning the floor on PROMPT_VERSION because v0.2 is what
+    introduced the Rule 13 / compound-clause routing discipline; an
+    accidental revert to v0.1 would silently re-enable the
+    fake-structuring failure mode the cache key is supposed to
+    catch only at the schema layer."""
+    assert PROMPT_VERSION >= "extractor-v0.2"
+
+
+def test_few_shot_examples_include_a_compound_free_text_case():
+    """Rule 13 is reinforced by a worked example. If the few-shot
+    list ever loses it, the prompt's discipline regresses to "tell
+    the model what to do, don't show it" -- which empirically
+    underperforms on compound clauses (D-68 baseline).
+
+    This test looks for any few-shot whose user-text contains a
+    Rule-13-style compound clause and whose gold output for that
+    clause is a `free_text` criterion. Specific surface forms can
+    drift; the pattern (compound clause -> free_text) is what
+    matters."""
+    found = False
+    for user_text, gold in FEW_SHOT_EXAMPLES:
+        # Rule-13-flavored markers in the user text.
+        if "or hepatic encephalopathy" not in user_text.lower():
+            continue
+        for crit in gold.criteria:
+            if crit.kind == "free_text" and "hepatic encephalopathy" in crit.source_text.lower():
+                found = True
+                break
+    assert found, (
+        "Expected a few-shot example demonstrating a compound clause "
+        "routed to free_text under Rule 13."
+    )
 
 
 def test_build_messages_layout():

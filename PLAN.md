@@ -19,8 +19,31 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** PLAN task 2.10 / **D-69** slice 3 — RxNorm
-  REST client + cache integration. New
+- **Last completed:** Extractor compound-criterion routing patch
+  (one of the two §0 follow-up cleanups, sequenced before D-69
+  slice 4 so its eval delta is independently attributable). Adds
+  Hard Rule 13 to the extractor system prompt — "Single-concept
+  typed slots: condition_text / medication_text / measurement_text
+  / event_text must each contain exactly ONE clinical concept;
+  compound clauses joined by 'or' / 'and' / commas route to
+  `free_text` instead." Cross-references it from Rule 2
+  (Atomicity). Adds a third few-shot example built from real
+  D-68 baseline misroutes ("severe liver dysfunction (Child-Pugh
+  C grade) or significant jaundice or hepatic encephalopathy"
+  and a four-class lipid-lowering medication compound), each
+  routed to `free_text` with a Rule-13-citing note. `PROMPT_VERSION`
+  bumped `extractor-v0.1` → `extractor-v0.2`, which auto-orphans
+  all 30 cached extractions in `data/curated/extractions/` per
+  the D-66 cache key — slice 5's eval rerun re-extracts from
+  scratch under the new discipline (intentional; the whole point
+  of versioning the cache key on prompt version). Estimated
+  impact: ~50–100 verdicts move from silent
+  `unmapped_concept` to `human_review_required` where the LLM
+  matcher node can actually engage. 2 new prompt tests pin the
+  Rule-13 must-have phrase, the version floor at v0.2, and the
+  presence of the compound-clause few-shot example.
+  Previous: PLAN task 2.10 / **D-69** slice 3 — RxNorm REST
+  client + cache integration. New
   `clinical_demo.terminology.rxnorm_client` module: thin sync
   wrapper over RxNav `/drugs.json?name=...` returning a
   matcher-shaped `RxNormConcepts` envelope (query + ConceptSet of
@@ -57,7 +80,14 @@
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** PLAN task 2.10 / D-69 **slice 4** — wire
+- **Next:** the second of the two §0 cleanups — wire CT.gov
+  structured `minimumAge` / `maximumAge` / `sex` fields into the
+  extractor so trials whose age/sex live *only* in the CT.gov
+  structured fields (not the eligibility text) generate the
+  implicit `age` / `sex` criteria the matcher needs. Estimated
+  layer-1 coverage delta: 55% → ~95%. Sequenced before D-69
+  slice 4 for the same attribution-cleanliness reason as the
+  Rule-13 patch. Then PLAN task 2.10 / D-69 **slice 4** — wire
   `lookup_condition` / `lookup_lab` / `lookup_medication`
   through the resolved bindings behind a `Settings.binding_strategy`
   switch (extend the `BindingStrategy` literal beyond `alias`,
@@ -68,22 +98,20 @@
   Optional **slice 3b** beforehand: UMLS search client for
   source vocabularies not covered by a known VSAC value set;
   defer until slice 4 reveals a real surface form that needs
-  it. Two compounding cleanups to slot before slice 5's eval
-  re-run: extractor compound-criterion routing prompt patch
-  (50–100 verdicts move from silent `unmapped_concept` to
-  `human_review_required`) and wiring structured CT.gov age/sex
-  fields into the extractor (layer-1 coverage 55% → ~95%).
-  Slice 5: re-run the eval harness against the D-68 baseline and
-  report `unmapped_concept` rate, agreement / coverage / binding
-  precision deltas, latency, failure modes. Then PLAN tasks 2.5
-  (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then 3.x
-  reliability + cost work and the `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (107 source files; +2 from the
-  RxNorm client module + tests); `ruff check` + `ruff format`
-  clean; `pytest` 453 / 453 passing (426 → 453; +12 RxNorm
-  client + 15 RxNorm cache). The reviewer UI is a thin
-  presentation layer over the API and is exercised manually; no
-  JS test runner in this repo on purpose (per D-64 it's not the
+  it. Slice 5: re-run the eval harness against the D-68
+  baseline and report `unmapped_concept` rate, agreement /
+  coverage / binding precision deltas, latency, failure modes
+  with all three independent improvements (Rule 13, CT.gov
+  structured age/sex, terminology binding) attributable to
+  individual commits. Then PLAN tasks 2.5 (layer-2 Chia F1) and
+  2.6 (layer-3 LLM judge), then 3.x reliability + cost work and
+  the `juliusm.com` deploy.
+- **Gates at HEAD:** `mypy` clean (107 source files); `ruff
+  check` + `ruff format` clean; `pytest` 455 / 455 passing
+  (453 → 455; +2 prompt regression tests for Rule 13 and the
+  PROMPT_VERSION floor). The reviewer UI is a thin presentation
+  layer over the API and is exercised manually; no JS test
+  runner in this repo on purpose (per D-64 it's not the
   production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
@@ -110,16 +138,6 @@ so they don't get lost between sessions.
   for VSAC/RxNorm/UMLS binding work; the current slice starts with
   VSAC expansion support and keeps runtime matcher behavior on the
   existing aliases until the resolver is wired and measured.
-- **Extractor compound-criterion routing.** Several "top
-  unmapped condition" entries are actually compound clauses the
-  extractor crammed into `condition_text` instead of routing to
-  `free_text` (e.g. "severe liver dysfunction (child-pugh c
-  grade) or significant jaundice or hepatic encephalopathy").
-  Prompt patch: "if you can't isolate a single SNOMED-grade
-  condition, route to `free_text`; clauses joined by 'and'/'or'
-  go to `free_text`." Estimated impact: 50-100 verdicts move
-  from `unmapped_concept` (silent) to `human_review_required`
-  (LLM matcher actually tries). See D-68 INDETERMINACY.md.
 - **Wire structured age/sex fields into extractor.** 34 of 76
   layer-1 cells are "missing" because the extractor reads
   eligibility text only, missing trials whose age/sex are
