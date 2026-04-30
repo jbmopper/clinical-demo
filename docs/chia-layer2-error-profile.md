@@ -220,9 +220,72 @@ lenient F1, with 2 partial matches across 79 gold spans. `Observation` also
 remains risky: lenient F1 moves from 2.0% to 11.8%, but the model still predicts
 70 observations for 32 gold spans.
 
+## Prompt Tightening Result: extractor-v0.4 and extractor-v0.5
+
+The first prompt tightening attempt, `extractor-v0.4`, was not retained as the
+candidate prompt. It targeted `Observation` precision and `Scope` boundaries,
+but the retained run regressed versus v0.3:
+
+- Micro F1: 37.5% -> 35.4% (-2.2 pp)
+- Macro F1: 35.4% -> 34.0% (-1.4 pp)
+- Lenient micro F1: 57.4% -> 55.8% (-1.6 pp)
+- `Observation` predictions increased again: 70 -> 81.
+
+The follow-up prompt, `extractor-v0.5`, made `Observation` precision-first and
+kept `Scope` narrower: emit it only for explicit clinical/numeric coordinated
+spans, not administrative or bare connector spans.
+
+Command:
+
+```bash
+uv run python scripts/eval.py chia \
+  --sample-size 50 \
+  --sample-seed 20260430 \
+  --write-sample-manifest eval/baselines/2026-04-30/layer2_chia_retained50_v05_manifest.json \
+  --output-json eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v05.json
+```
+
+Artifacts:
+
+- Failed v0.4 manifest:
+  `eval/baselines/2026-04-30/layer2_chia_retained50_v04_manifest.json`
+- Failed v0.4 report:
+  `eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v04.json`
+- v0.5 manifest:
+  `eval/baselines/2026-04-30/layer2_chia_retained50_v05_manifest.json`
+- v0.5 report:
+  `eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v05.json`
+
+Result versus v0.3 overlap baseline:
+
+- Predicted mentions: 675 -> 668 (-7)
+- Exact true positives: 300 -> 300 (+0)
+- Additional same-type partial matches: 159 -> 166 (+7)
+- Micro precision: 44.4% -> 44.9% (+0.4 pp)
+- Micro recall: 32.5% -> 32.5% (+0.0 pp)
+- Micro F1: 37.5% -> 37.7% (+0.2 pp)
+- Macro F1: 35.4% -> 35.3% (-0.1 pp)
+- Lenient micro F1: 57.4% -> 58.6% (+1.2 pp)
+- Lenient macro F1: 54.3% -> 55.3% (+1.0 pp)
+- Extraction cost: $0.0724
+- Runtime: ~9.2 minutes
+
+Important label movement:
+
+- `Observation` false positives fell 69 -> 32, but exact true positives fell
+  1 -> 0. The precision-first rule reduced noise but did not solve the label.
+- `Scope` false positives fell 12 -> 9 and exact true positives moved 1 -> 2,
+  but recall remains extremely weak: exact F1 is only 4.4%.
+- `Drug` improved materially: exact F1 52.9% -> 63.5%, lenient F1 74.3% ->
+  82.4%.
+- `Value` exact F1 regressed 35.5% -> 32.7%, but lenient F1 remains high
+  (70.6%), so most remaining value misses are still boundary-shaped.
+
 Recommended next step:
 
-Do a smaller v0.4 prompt tightening focused on `Observation` precision and
-`Scope` recall/boundary examples, rerunning the same retained sample afterward.
-Do not move to schema-level Chia relation/equivalence output yet; the flat
-mention layer still has recoverable prompt-level misses.
+Keep `extractor-v0.5` as the current prompt because it improves the aggregate
+micro and lenient scores while cutting Observation noise. Do not do another
+broad prompt pass immediately. The next layer-2 move should either be a small
+targeted `Scope` example pass or a scorer-side error analysis of whether Chia's
+`Observation` label is consistent enough to optimize further. Schema-level
+relation/equivalence output is still premature.

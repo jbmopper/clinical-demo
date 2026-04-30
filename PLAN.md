@@ -19,27 +19,34 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** PLAN task 2.5 diagnostic follow-up —
-  **Chia overlap / containment layer-2 view**. Added secondary
-  same-type partial-match diagnostics to `clinical_demo.evals.layer_two`
-  while preserving exact `(type, surface)` precision / recall / F1 as
-  the primary score. The diagnostic matches exact false negatives to
-  exact false positives when one normalized span contains the other or
-  their token overlap is high, and reports `partial_true_positive` plus
-  lenient precision / recall / F1 at document, aggregate, and per-type
-  levels. Replayed the frozen v0.3 retained sample from cache
-  (`--sample-size 50 --sample-seed 20260430 --no-llm`) and saved
-  `eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v03_overlap.json`.
-  Exact metrics remain: 923 gold, 675 predicted, 300 TP, micro F1 37.5%,
-  macro F1 35.4%. Boundary-aware view adds 159 partial matches, raising
-  lenient micro F1 to 57.4% and lenient macro F1 to 54.3%. Largest
-  exact-to-lenient gains: `Value` 35.5% -> 73.7% F1, `Temporal` 20.0%
-  -> 51.1%, `Condition` 57.6% -> 81.0%, `Person` 26.7% -> 50.0%,
-  `Drug` 52.9% -> 74.3%. `Scope` remains a true weak label rather than
-  a pure boundary issue (2.2% exact F1 -> 6.5% lenient F1), and
-  `Observation` remains over-predicted (70 predictions for 32 gold,
-  11.8% lenient F1). Updated `docs/chia-layer2-error-profile.md` and the
-  Chia error-profile canvas.
+- **Last completed:** PLAN task 2.5 prompt follow-up —
+  **extractor-v0.5 Chia Observation / Scope tightening**. The first
+  tightening attempt (`extractor-v0.4`) regressed the retained sample
+  (micro F1 37.5% -> 35.4%, lenient micro F1 57.4% -> 55.8%) and was
+  treated as a failed intermediate run. Reworked it into
+  `extractor-v0.5`: `Observation` is now precision-first and `Scope`
+  is limited to explicit clinical/numeric coordinated spans rather than
+  administrative or bare connector spans. Reran the frozen 50-document
+  Chia retained sample and saved
+  `eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v04.json`
+  (failed intermediate) plus
+  `eval/baselines/2026-04-30/layer2_chia_retained50_entity_f1_v05.json`
+  and its manifest. v0.5 vs. v0.3 overlap baseline: predicted mentions
+  675 -> 668 (-7), exact TP 300 -> 300, partial TP 159 -> 166, precision
+  44.4% -> 44.9%, recall unchanged at 32.5%, micro F1 37.5% -> 37.7%,
+  macro F1 35.4% -> 35.3%, lenient micro F1 57.4% -> 58.6%, lenient
+  macro F1 54.3% -> 55.3%, cost $0.0724. `Observation` false positives
+  fell 69 -> 32, but exact TP fell 1 -> 0; `Scope` false positives fell
+  12 -> 9 and exact TP moved 1 -> 2, but exact F1 is still only 4.4%.
+  `Drug` improved materially (52.9% -> 63.5% F1). Updated
+  `docs/chia-layer2-error-profile.md` and the Chia error-profile canvas.
+  Previous: PLAN task 2.5 diagnostic follow-up — **Chia overlap /
+  containment layer-2 view**. Added secondary same-type partial-match
+  diagnostics to `clinical_demo.evals.layer_two` while preserving exact
+  `(type, surface)` precision / recall / F1 as the primary score.
+  Replayed the frozen v0.3 retained sample from cache; exact micro F1
+  stayed 37.5%, and the boundary-aware view added 159 partial matches,
+  raising lenient micro F1 to 57.4% and lenient macro F1 to 54.3%.
   Previous: PLAN task 2.5 prompt pass — **extractor-v0.3 Chia mention
   discipline**. Bumped `PROMPT_VERSION` to `extractor-v0.3`, added Hard
   Rule 14 plus Chia-style mention boundary guidance, and added a fourth
@@ -349,13 +356,12 @@
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** Do a small v0.4 prompt tightening focused on `Observation`
-  precision and `Scope` recall/boundary examples, then rerun the same
-  retained 50-document sample with both exact and overlap/containment
-  diagnostics. Do not pull schema-level Chia relation/equivalence output
-  forward yet; the flat mention layer still has prompt-level misses. After
-  that: PLAN task 2.6 (layer-3 LLM judge), then 3.x reliability + cost
-  work and the `juliusm.com` deploy.
+- **Next:** Do not launch another broad Chia prompt pass immediately.
+  Either add one narrowly targeted `Scope` example pass or analyze
+  whether Chia's `Observation` label is consistent enough to optimize
+  further. If that does not reveal a cheap next layer-2 gain, move to
+  PLAN task 2.6 (layer-3 LLM judge), then 3.x reliability + cost work
+  and the `juliusm.com` deploy.
 - **Gates at HEAD:** `mypy` clean (119 source files); `ruff
   check` + `ruff format --check` clean; `pytest` 556 / 556
   passing. The reviewer UI is a thin presentation layer over the
@@ -560,7 +566,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 2.2 | Aggregator + Critic loop: bounded revision iterations, termination conditions, human-checkpoint hook. *Done — `clinical_demo.graph` package gains `critic_node`, `revise_node`, `finalize_node` and a `route_after_critic` conditional edge wired as `rollup → critic → [revise → rollup` \| `finalize]`. The critic is a separate LLM call with its own pinned prompt (`LLM_CRITIC_VERSION = "llm-critic-v0.1"`) that emits closed-enum **process** findings (`polarity_smell`, `extraction_disagreement_with_text`, `low_confidence_indeterminate`) with `info` \| `warning` \| `blocker` severities; it never re-decides eligibility itself. Revise picks the highest-severity warning, dispatches to a closed-enum action (`rerun_match_with_focus`, `flip_polarity_and_rematch`, `rerun_extract_for_criterion`), and re-runs the existing matcher path so revisions stay auditable. Loop terminates on (a) no actionable findings, (b) `max_critic_iterations` budget (default 2), (c) no-progress detection comparing the current iteration's finding fingerprints to the previous; LangGraph's `recursion_limit` is a runtime config backstop. New `merge_indexed_verdicts` reducer gives `indexed_verdicts` replace-by-index semantics so revised verdicts supersede rather than coexist. Human checkpoint is opt-in (`human_checkpoint=True`): graph compiles with `InMemorySaver(serde=JsonPlusSerializer(pickle_fallback=True))` and `interrupt_before=[FINALIZE_NODE]`, requires a `thread_id`, and resumes via the same `score_pair_graph()` entry. Observability tags critic/revise/finalize spans with iteration + action + criterion-index + verdict-changed metadata, plus per-pair `critic_iterations` / `revisions_total` / `revisions_changed_verdict` on the parent. 32 new tests across `test_critic_node.py`, `test_revise_node.py`, `test_route_after_critic.py`, `test_critic_loop_e2e.py`, `test_human_checkpoint.py` cover defensive index filtering, refusal handling, fingerprint snapshots, action dispatch (free-text vs deterministic, polarity flip, no-op recording), termination conditions, e2e parity when the critic is disabled, and HITL pause/resume — plus expansions to `test_state.py` (new reducer + state keys) and `test_observability.py` (new spans). 340 total passing. Decisions D-50..D-58.* | 4 |
 | 2.3 | Eval harness scaffolding: dataset format, runner, results store, basic CLI (`eval run`, `eval report`). *Done — new `clinical_demo.evals` package adds `EvalCase` / `CaseRecord` / `RunResult` pydantic envelopes, `load_dataset()` reusing the existing `eval_seed.json` shape, and a one-call `run_eval(scorer, cases)` that's deliberately orchestrator-agnostic (the scorer is a `Callable[[EvalCase], ScorePairResult]`, so `score_pair()`, `score_pair_graph()`, and any future variants are all "just a scorer"). SQLite store (`evals.store`) is two append-only tables — `runs` plus `cases` carrying flat per-case summary cols **and** the full `ScorePairResult` as a `result_json` blob (D-60); a normalized verdicts table is deferred until a layer query motivates it. Per-case scorer exceptions are caught and recorded on the row instead of failing the run (D-62). New `scripts/eval.py` exposes `run` (with `--orchestrator`, `--no-llm`, `--critic-enabled`, `--pair-id`, `--limit`, `--notes`) and `report` (id-or-list, `--format text\|json`); `eval/runs.sqlite` is gitignored. 20 new tests across `test_run.py` (dataset round-trip, filtering, runner success + failure isolation + callback ordering) and `test_store.py` (idempotent schema + `user_version`, save/load round-trip including `extraction_meta`, append-only enforcement, failed-case persistence, listing newest-first). 360 total passing. Decisions D-59..D-63.* | 4 |
 | 2.4 | Layer 1 eval — deterministic: per-criterion accuracy on numeric/structured criteria. *Done — `evals/layer_one.py` aligns seed `CriterionVerdict`s against matcher `MatchVerdict`s per field (`min_age`, `max_age`, `sex`; `healthy_volunteers` documented uncoverable in v0), produces `LayerOneCell`s with `agree`/`disagree`/`missing` status, and rolls up per-field + overall agreement (excludes missing) and coverage (includes missing). `evals/report_layer_one.py` is a one-screen text renderer; `scripts/eval.py report --layer 1` dispatches to it (`--format json` also supported). 13 new tests. 373 total passing.* | 2 |
-| 2.5 | Layer 2 eval — reference-based: criterion extraction F1 vs. Chia annotations. *v0 done — entity-mention F1 over normalized `(type, surface)` pairs, because the extractor emits flat `mentions` but not Chia relations/equivalence groups. Added `evals.layer_two`, `report_layer_two`, and `scripts/eval.py chia` with prompt/schema/model-aware extraction caching under `data/curated/chia_extractions/`. 5-document live smoke: 275 gold, 114 predicted, 50 TP; micro precision 43.9%, recall 18.2%, F1 25.7%; macro F1 24.9%; cost $0.0078; JSON snapshot in `eval/baselines/2026-04-30/layer2_chia_entity_f1_smoke.json`. Retained 50-document sample frozen with `--sample-size 50 --sample-seed 20260430`: baseline micro F1 34.4%, macro F1 33.0%, cost $0.0588. `extractor-v0.3` mention-discipline pass improved retained micro F1 to 37.5% (+3.2 pp) and macro F1 to 35.4% (+2.4 pp), mostly via `Value`, `Temporal`, `Procedure`, `Reference_point`, and `Measurement`, but over-predicted `Observation` and barely moved `Scope`. Added overlap/containment diagnostics: same v0.3 retained sample has 159 same-type partial matches, lenient micro F1 57.4%, lenient macro F1 54.3%; this shows boundary progress for `Value`/`Temporal` but real remaining weakness for `Scope` and `Observation`. Error profile in `docs/chia-layer2-error-profile.md`; next layer-2 work is focused v0.4 prompt tightening, not graph-schema expansion yet.* | 4 |
+| 2.5 | Layer 2 eval — reference-based: criterion extraction F1 vs. Chia annotations. *v0 done — entity-mention F1 over normalized `(type, surface)` pairs, because the extractor emits flat `mentions` but not Chia relations/equivalence groups. Added `evals.layer_two`, `report_layer_two`, and `scripts/eval.py chia` with prompt/schema/model-aware extraction caching under `data/curated/chia_extractions/`. 5-document live smoke: 275 gold, 114 predicted, 50 TP; micro precision 43.9%, recall 18.2%, F1 25.7%; macro F1 24.9%; cost $0.0078; JSON snapshot in `eval/baselines/2026-04-30/layer2_chia_entity_f1_smoke.json`. Retained 50-document sample frozen with `--sample-size 50 --sample-seed 20260430`: baseline micro F1 34.4%, macro F1 33.0%, cost $0.0588. `extractor-v0.3` mention-discipline pass improved retained micro F1 to 37.5% (+3.2 pp) and macro F1 to 35.4% (+2.4 pp), mostly via `Value`, `Temporal`, `Procedure`, `Reference_point`, and `Measurement`, but over-predicted `Observation` and barely moved `Scope`. Added overlap/containment diagnostics: same v0.3 retained sample has 159 same-type partial matches, lenient micro F1 57.4%, lenient macro F1 54.3%. `extractor-v0.4` prompt tightening regressed and was not retained. `extractor-v0.5` recovered aggregate metrics: micro F1 37.7%, macro F1 35.3%, lenient micro F1 58.6%, lenient macro F1 55.3%; it cuts `Observation` false positives but still does not solve `Observation` exact TP or `Scope` recall. Error profile in `docs/chia-layer2-error-profile.md`; next layer-2 work should be narrow `Scope` / `Observation` analysis or else moving on to layer 3, not graph-schema expansion yet.* | 4 |
 | 2.6 | Layer 3 eval — LLM-as-judge: rubric, prompt, calibration against ~30–50 hand-graded examples; report inter-rater agreement. | 6 |
 | 2.7 | First baseline regression run; commit numbers to repo as `eval/baselines/`. *Done — fresh extraction over all 30 curated trials under the D-66 cache scheme (570 criteria, $0.067, ~18 min wall), then two eval runs against the 49-pair seed: imperative (`b55783ff962f`, ~14s scoring on cache-warm) and graph + critic (`ae7ac16936b8`, ~5 min). Both runs written to `eval/runs.sqlite`; layer-1 reports + pretty run summaries snapshotted under `eval/baselines/2026-04-21/` with a `SUMMARY.md` (provenance + per-field numbers + slice rollup) and an `INDETERMINACY.md` (per-criterion diagnostic answering "why so much indeterminacy"). Headline: layer-1 overall agreement 81.0%, coverage 55.3%, and identical between orchestrators (critic acts on rollup/rationale, not per-criterion structured-field dispatch). All 8 layer-1 disagreements are matcher-correct + seed-partial-label artifacts (mechanical labeler scored `min_age` independently of `max_age`). 0 `pass` eligibility verdicts across 49 pairs is real — synthea cohort × these specific trials don't align well, and the rollup is correctly conservative. Diagnostic finding: 92% of all 841 per-criterion verdicts are `indeterminate`, of which 89% are `unmapped_concept`; conditions dominate (73% of unmapped) over labs (17%) over medications (6%); top investment is concept-vocabulary expansion (D-67). Side fix landed in this task: store schema bumped v1→v2 with an additive `ALTER TABLE` migration to persist `expected_structured` and `free_text_review_status` per case, so layer-1+ analyses run from a self-contained persisted run instead of re-loading the seed file (was a silent layer-1-empty-report bug). 2 new store tests (v1→v2 migration, label round-trip), 1 existing test edited for the version bump. 393 total passing. Decisions D-67, D-68.* | 2 |
 | 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. *Done — SvelteKit single-page app under `web/` (Svelte 5, TypeScript, static adapter). Hand-typed `lib/api.ts` over the four FastAPI routes (no codegen — surface is ~30 lines and `juliusm.com` will retype anyway). Single `+page.svelte` mounts patient + trial selectors from `/patients` and `/trials`, posts `/score` with toggles for orchestrator (`imperative` \| `graph`), critic loop, cached extraction, and `as_of`; renders the `ScorePairResult` as a header card (eligibility pill + verdict counts + extractor model / cost / token meta) and a list of `<CriterionRow>`s. Each row is a click-to-expand affordance: collapsed shows polarity + kind + source bullet + verdict pill; expanded shows the matcher's rationale, typed evidence rows (lab / condition / medication / demographics / trial_field / missing), and a `<details>` with the raw extracted criterion JSON for debugging. `<VerdictPill>` is a closed-enum component over `pass` \| `fail` \| `indeterminate` with a per-verdict palette. Health badge in the header probes `/health` on mount; catalog and score errors are surfaced inline as banners (no toasts, no router). API base URL defaults to `http://127.0.0.1:8000` and is overridable via `VITE_API_BASE`. Per **D-64** this lives here as a *dev rig only* — the production reviewer surface ports into the `juliusm.com` repo, so this directory carries no JS test runner, no build pipeline beyond `vite dev`, and no deploy adapter. `web/.gitignore` covers `node_modules` / `.svelte-kit` / `build` so the repo root stays Python-only. Decision D-64. | 8 |

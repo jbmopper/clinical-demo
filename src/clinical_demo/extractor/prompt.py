@@ -31,9 +31,20 @@ from .schema import (
     TemporalWindowCriterion,
 )
 
-PROMPT_VERSION = "extractor-v0.3"
+PROMPT_VERSION = "extractor-v0.5"
 """Bump on any meaningful change to SYSTEM_PROMPT or few-shot
 examples. Persisted alongside every extraction for eval attribution.
+
+v0.5: precision-first follow-up after v0.4 regressed the retained
+layer-2 sample. Keeps the Scope recall intent, but makes Observation
+rare and explicit; do not label administrative, language, site/trial,
+organ-function adequacy, procedure, measurement, condition, or judgment
+phrases as Observation.
+
+v0.4: tightened Observation precision and Scope recall/boundaries after
+the retained layer-2 overlap diagnostic showed that Value/Temporal
+mostly have boundary-close misses, while Observation is over-predicted
+and Scope is still mostly absent.
 
 v0.3: tightened Chia-style `mentions` discipline and added a fourth
 few-shot focused on Scope / Temporal / Value / Negation / Qualifier /
@@ -144,19 +155,34 @@ not only "6 months" or "30 days".
 - Qualifier: label severity, proof/status, exception, and modifier \
 words ("severe", "known", "stable", "prior", "cytologically proven", \
 "reviewed by transplant center") separately from the clinical noun.
-- Observation: use for clinical observations and history-style facts \
-that are not diseases themselves ("history of", "life expectancy", \
-"regular cigarette smoker", "alcohol abuse", "growth factor use").
+- Observation: this is a narrow audit label; precision matters more \
+than recall. Use it only for explicit clinical observation facts such \
+as "history", "regular cigarette smoker", "tobacco use", "alcohol \
+abuse", "drug abuse", "life expectancy", "treatment plan", \
+"immunosuppression", "MRSA", or "S. aureus". Do not emit "history of" \
+as a standalone Observation; use "history" if the cue is needed. Do \
+not label diseases, measurements, organ-function adequacy, procedures, \
+drugs, people, visits, qualifiers, consent/availability, language, \
+site/trial/cohort names, high-risk labels, diagnosis/review phrases, \
+contraindication phrases, treatment failure, or investigator judgment \
+as Observation. When unsure, omit Observation rather than adding a \
+low-precision span.
 - Procedure: use for surgeries, scans, anesthesia, intubation, \
 ventilation, contraception procedure language, or radiation as a \
 treatment procedure.
 - Multiplier: label multiplicity / count / frequency phrases ("more \
 than one", ">2 doses per week", "1 mg or less") when they constrain \
 a drug, procedure, or event.
-- Scope: label the full span that joins alternatives or modifier \
-context ("general or neuraxial anesthesia", "b or c", "concomitant or \
-previous", "major impairment of renal or hepatic function"). Scope \
-is especially important for OR/AND lists and exception clauses.
+- Scope: label the full source span only when it joins explicit \
+clinical alternatives, numeric alternatives, or shared modifier context \
+with "or", "and", a comma list, or a slash. The span must include the \
+meaningful nouns or values on both sides: "general or neuraxial \
+anesthesia", "b or c", "major impairment of renal or hepatic function", \
+"absorption or metabolism of levothyroxine", "allergy, hypersensitivity, \
+or intolerance". Never emit bare connector tokens ("or", "and") as \
+Scope. Do not label trial, cohort, site, language, age-only, normal-range, \
+or administrative phrases as Scope. When unsure, omit Scope rather than \
+adding a low-precision administrative span.
 """
 
 # ---------- few-shot examples ----------
@@ -567,7 +593,7 @@ FEW_SHOT_EXAMPLES: list[tuple[str, ExtractedCriteria]] = [
                         note=("compound observation criterion with negation and qualifier context")
                     ),
                     mentions=[
-                        EntityMention(text="History of", type="Observation"),
+                        EntityMention(text="History", type="Observation"),
                         EntityMention(text="alcohol abuse", type="Observation"),
                         EntityMention(text="regular cigarette smoker", type="Observation"),
                         EntityMention(text="without", type="Negation"),

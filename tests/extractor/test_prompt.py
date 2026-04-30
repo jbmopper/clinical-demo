@@ -49,17 +49,22 @@ def test_system_prompt_contains_load_bearing_phrases():
         "Single-concept typed slots",
         "Chia-style mentions are expected",
         "Mention boundary guidance",
-        "Scope: label the full span",
+        "Scope: label the full source span",
+        "precision matters more than recall",
+        "When unsure, omit Observation",
+        "Never emit bare connector tokens",
+        "When unsure, omit Scope",
     ]
     for phrase in must_haves:
         assert phrase in SYSTEM_PROMPT, f"missing rule: {phrase!r}"
 
 
-def test_prompt_version_is_v0_3_or_later():
-    """Pin the floor because v0.3 introduced the layer-2 Chia
-    mention-discipline pass. An accidental revert would silently reuse
-    weaker prompt behavior under a fresh-looking cache key."""
-    assert PROMPT_VERSION >= "extractor-v0.3"
+def test_prompt_version_is_v0_5_or_later():
+    """Pin the floor because v0.5 is the precision-first follow-up to
+    the failed v0.4 retained-sample run. An accidental revert would
+    silently reuse weaker prompt behavior under a fresh-looking cache
+    key."""
+    assert PROMPT_VERSION >= "extractor-v0.5"
 
 
 def test_few_shot_examples_include_a_compound_free_text_case():
@@ -123,6 +128,10 @@ def test_few_shot_examples_include_chia_context_mentions():
     assert any(
         mention.type == "Scope" and mention.text == "General or neuraxial anesthesia"
         for mention in mentions
+    )
+    assert any(mention.type == "Observation" and mention.text == "History" for mention in mentions)
+    assert not any(
+        mention.type == "Observation" and mention.text == "History of" for mention in mentions
     )
 
 

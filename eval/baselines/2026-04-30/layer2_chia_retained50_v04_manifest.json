@@ -1,0 +1,257 @@
+{
+  "chia_dir": "data/raw/chia",
+  "sample_size": 50,
+  "sample_seed": 20260430,
+  "documents": [
+    {
+      "doc_id": "NCT00312429_inc",
+      "nct_id": "NCT00312429",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT00396734_inc",
+      "nct_id": "NCT00396734",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT00676273_exc",
+      "nct_id": "NCT00676273",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT00806273_exc",
+      "nct_id": "NCT00806273",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT00806936_exc",
+      "nct_id": "NCT00806936",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT00904202_exc",
+      "nct_id": "NCT00904202",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT01701219_exc",
+      "nct_id": "NCT01701219",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT01793519_inc",
+      "nct_id": "NCT01793519",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT01822262_exc",
+      "nct_id": "NCT01822262",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT01943409_exc",
+      "nct_id": "NCT01943409",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02041299_inc",
+      "nct_id": "NCT02041299",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02106598_exc",
+      "nct_id": "NCT02106598",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02256943_exc",
+      "nct_id": "NCT02256943",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02283905_inc",
+      "nct_id": "NCT02283905",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02323399_inc",
+      "nct_id": "NCT02323399",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02357654_inc",
+      "nct_id": "NCT02357654",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02366819_exc",
+      "nct_id": "NCT02366819",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02385448_exc",
+      "nct_id": "NCT02385448",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02426034_inc",
+      "nct_id": "NCT02426034",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02462317_exc",
+      "nct_id": "NCT02462317",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02478346_inc",
+      "nct_id": "NCT02478346",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02499185_inc",
+      "nct_id": "NCT02499185",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02541955_inc",
+      "nct_id": "NCT02541955",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02542956_exc",
+      "nct_id": "NCT02542956",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02543710_exc",
+      "nct_id": "NCT02543710",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02560766_exc",
+      "nct_id": "NCT02560766",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02595190_exc",
+      "nct_id": "NCT02595190",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02609698_exc",
+      "nct_id": "NCT02609698",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02632318_exc",
+      "nct_id": "NCT02632318",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02643381_exc",
+      "nct_id": "NCT02643381",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02689817_inc",
+      "nct_id": "NCT02689817",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02721017_exc",
+      "nct_id": "NCT02721017",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02733159_inc",
+      "nct_id": "NCT02733159",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02783859_exc",
+      "nct_id": "NCT02783859",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02862314_inc",
+      "nct_id": "NCT02862314",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02862912_exc",
+      "nct_id": "NCT02862912",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02894645_inc",
+      "nct_id": "NCT02894645",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT02946918_exc",
+      "nct_id": "NCT02946918",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02952365_exc",
+      "nct_id": "NCT02952365",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT02961764_inc",
+      "nct_id": "NCT02961764",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT03027115_inc",
+      "nct_id": "NCT03027115",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT03063866_inc",
+      "nct_id": "NCT03063866",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT03126214_exc",
+      "nct_id": "NCT03126214",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT03147599_inc",
+      "nct_id": "NCT03147599",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT03156855_exc",
+      "nct_id": "NCT03156855",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT03335436_inc",
+      "nct_id": "NCT03335436",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT03471117_exc",
+      "nct_id": "NCT03471117",
+      "section": "exclusion"
+    },
+    {
+      "doc_id": "NCT03495609_inc",
+      "nct_id": "NCT03495609",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT03639519_inc",
+      "nct_id": "NCT03639519",
+      "section": "inclusion"
+    },
+    {
+      "doc_id": "NCT03663387_exc",
+      "nct_id": "NCT03663387",
+      "section": "exclusion"
+    }
+  ]
+}
