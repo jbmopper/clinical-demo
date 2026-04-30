@@ -19,8 +19,59 @@
 > rationale lives in §12.
 
 - **Active phase:** Phase 2 — Workflow + eval.
-- **Last completed:** D-69 slice 4 follow-on — **medication
-  bindings registry population**. Six cardiometabolic ingredient
+- **Last completed:** D-69 slice 4 follow-on — **VSAC bindings
+  registry population (conditions + labs)**. Two canonical eCQM
+  value-set OIDs added to the registry beyond the T2DM seed,
+  each validated against live VSAC `$expand` and shipped with
+  a recorded fixture so resolver tests stay
+  offline-deterministic. (1) **Essential Hypertension** -- OID
+  `2.16.840.1.113883.3.464.1003.104.12.1011` (CMS165's
+  Controlling High Blood Pressure value set; 14 SNOMED codes
+  including `59621000` Essential hypertension); bound from
+  surface forms `hypertension`, `essential hypertension`, `high
+  blood pressure`, `htn` with `system_filter=
+  "http://snomed.info/sct"` because the value set is
+  multi-system and the matcher's PatientProfile is
+  single-system per query. (2) **HbA1c Laboratory Test** --
+  OID `2.16.840.1.113883.3.464.1003.198.12.1013` (CMS122's
+  Diabetes HbA1c Poor Control value set; 5 LOINC codes:
+  4548-4 standard HbA1c %, 4549-2, 17855-8, 17856-6, 96595-4);
+  bound from `hba1c`, `hemoglobin a1c`, `haemoglobin a1c`,
+  `a1c`, `glycated hemoglobin`, `glycosylated hemoglobin`
+  with `system_filter="http://loinc.org"`. New module-level
+  constants `ECQM_HYPERTENSION_OID`, `ECQM_HBA1C_LAB_OID`,
+  `SNOMED_SYSTEM`, `LOINC_SYSTEM` so probe scripts and
+  regression tests can reference them by name instead of
+  retyping dotted strings. Fixtures added at
+  `tests/fixtures/vsac/hypertension_expansion.json` and
+  `tests/fixtures/vsac/hba1c_lab_expansion.json` -- recorded
+  via inline httpx round-trip (probe_vsac.py's `--record` is
+  hardwired to the diabetes fixture path; an extension to
+  multi-fixture support is a future ergonomics improvement).
+  Hyperlipidemia and CKD intentionally NOT included: research
+  surfaced canonical OIDs only under non-CMS authorities (HL7
+  Patient Care WG for hyperlipidemia; CKD Stage 5 only is too
+  narrow to bind to "ckd"); rather than guess we leave them on
+  the named follow-on list with the slice-5 eval rerun
+  empirically deciding the priority. Test changes: replaced
+  the single `test_ecqm_diabetes_oid_is_the_canonical_cms_value_set`
+  with a parametrize over all three OID constants; added
+  positive parametrized tests pinning each populated condition
+  / lab surface form to its OID + system_filter; new
+  `test_vsac_fixture_matches_pinned_oid` parametrize verifies
+  each recorded fixture's `id` field equals the constant we
+  pin (catches accidental fixture/OID mismatch); replaced the
+  empty-lab-registry pin with positive lookups; updated the
+  resolver-side soft-fail test docstring to reflect lab
+  registry now hits and falls through on cache+client miss.
+  Default `binding_strategy` stays `alias`; this expansion is
+  inert in production until an operator opts into `two_pass`.
+  Slice-5 eval rerun is the first chance to measure how much
+  these eight new bindings (4 hypertension surfaces + 6 HbA1c
+  surfaces; -2 for the 4-surface dedup on the OID) close the
+  alias-only `unmapped_concept` baseline.
+  Previous: D-69 slice 4 follow-on -- **medication bindings
+  registry population**. Six cardiometabolic ingredient
   bindings added to `MEDICATION_BINDINGS`: metformin, insulin,
   atorvastatin, simvastatin, semaglutide (GLP-1
   representative), dapagliflozin (SGLT2 representative). Each
@@ -207,27 +258,25 @@
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** populate the **VSAC** half of the registry — top
-  conditions and labs from the D-68 INDETERMINACY.md ranking,
-  each OID validated against the live VSAC `$expand` endpoint
-  via `scripts/probe_vsac.py` (UMLS_API_KEY required; available
-  in the local `.env`). Likely shape: ~4 condition value sets
-  (hypertension, hyperlipidemia, CKD, pregnancy) and ~2-3 lab
-  value sets (HbA1c LOINC, BMI LOINC if a clean OID exists, eGFR
-  LOINC). Each entry's a one-line addition + a recorded
-  `tests/fixtures/vsac/<name>_expansion.json` fixture so the
-  resolver tests stay offline-deterministic. Skip OIDs we can't
-  validate live -- hallucinated OIDs are exactly the failure
-  mode the diabetes-OID pinning test exists to prevent. After
-  that, optional **slice 3b** (UMLS search client; defer until
-  registry expansion reveals a real surface form that needs it),
-  then **slice 5** -- re-run the eval harness against the D-68
-  baseline with `binding_strategy="two_pass"` and report
+- **Next:** **slice 5 (eval rerun)** is now the natural next
+  beat -- six independent improvements have landed since the
+  D-68 baseline (Rule 13 compound-criterion routing, CT.gov
+  structured age/sex enrichment, terminology two_pass wire-up,
+  T2DM VSAC seed, six RxNorm medication bindings, two more
+  VSAC bindings for hypertension + HbA1c), each attributable
+  to its own commit. Re-run the eval harness against the
+  D-68 baseline with `binding_strategy="two_pass"` and report
   `unmapped_concept` rate, agreement / coverage / binding
-  precision deltas, latency, failure modes with five
-  independent improvements (Rule 13, CT.gov structured age/sex,
-  terminology wire-up, T2DM seed, RxNorm medications, VSAC
-  registry expansion) attributable to individual commits. Optional **slice 3b** thereafter: UMLS search
+  precision deltas, latency, failure modes; produce a per-commit
+  attribution table. Only after the empirical results land
+  should we extend the registry further -- the eval surfaces
+  which deferred bindings (hyperlipidemia, CKD, eGFR, BMI,
+  pregnancy, GLP-1 / SGLT2 class coverage) actually move
+  metrics vs. which are speculative. Optional **slice 3b**
+  (UMLS search client) likewise defers to slice-5 evidence.
+  Bindings expansion shape, when it happens, is one-line
+  additions + a recorded fixture per VSAC OID -- the slice-4
+  plumbing supports them today. Optional **slice 3b** thereafter: UMLS search
   client for source vocabularies not covered by a known VSAC
   value set; defer until registry expansion reveals a real
   surface form that needs it. Then **slice 5** — re-run the
@@ -240,13 +289,15 @@
   tasks 2.5 (layer-2 Chia F1) and 2.6 (layer-3 LLM judge), then
   3.x reliability + cost work and the `juliusm.com` deploy.
 - **Gates at HEAD:** `mypy` clean (113 source files); `ruff
-  check` + `ruff format` clean; `pytest` 531 / 531 passing
-  (524 → 531; +6 medication entry parametrize + 1 lookup-helper
-  test, -1 stale empty-registry pin, +1 resolver soft-fail
-  docstring update). The reviewer UI is a thin presentation
-  layer over the API and is exercised manually; no JS test
-  runner in this repo on purpose (per D-64 it's not the
-  production artifact).
+  check` + `ruff format` clean; `pytest` 547 / 547 passing
+  (531 → 547; +3 OID-pinning parametrize fan-out, +4
+  hypertension surface parametrize, +6 HbA1c surface
+  parametrize, +3 fixture-shape parametrize, +2 new
+  positive-lookup tests, -1 stale empty-lab-registry pin,
+  -1 single-OID test consolidated into parametrize). The
+  reviewer UI is a thin presentation layer over the API and
+  is exercised manually; no JS test runner in this repo on
+  purpose (per D-64 it's not the production artifact).
 - **Branch:** `main`, pushed to `origin`.
 
 ### Non-trivial open follow-ups

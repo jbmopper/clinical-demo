@@ -47,14 +47,37 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-# v0 single-binding seed. The eCQM "Diabetes" value set
-# (2.16.840.1.113883.3.464.1003.103.12.1001) is the canonical CMS
-# diabetes code list for quality reporting -- broad enough to cover
-# Synthea's diabetes coding (44054006 type 2, 73211009 unspecified)
-# and explicitly authored by NCQA, so the binding is defensible
-# against a clinical reviewer ("we used the same code list CMS uses
-# for Diabetes Care").
+# Canonical CMS / NCQA eCQM value-set OIDs used by the v0 registry.
+# Each was validated against live VSAC `$expand` (scripts/probe_vsac.py)
+# and shipped with a recorded fixture under tests/fixtures/vsac/ so
+# the resolver tests stay offline-deterministic.
+#
+# Naming: `ECQM_<topic>_OID` for the OID, `<TOPIC>_VSAC_BINDING` for
+# the canonical binding object. We keep the OIDs as module-level
+# constants (not just inlined in the registry) so a regression test
+# can pin each one byte-for-byte and so probe scripts / docs can
+# reference them by name without re-typing the dotted string.
+
 ECQM_DIABETES_OID = "2.16.840.1.113883.3.464.1003.103.12.1001"
+"""eCQM 'Diabetes' value set. Used by CMS122 (HbA1c Poor Control),
+CMS123 (Foot Exam), CMS131 (Eye Exam), etc. Authored by NCQA.
+Multi-system in principle but the VSAC expansion currently returns
+SNOMED only for our purposes (matched by the recorded fixture).
+Covers Synthea's 44054006 (T2DM) and 73211009 (DM unspecified)."""
+
+ECQM_HYPERTENSION_OID = "2.16.840.1.113883.3.464.1003.104.12.1011"
+"""eCQM 'Essential Hypertension' value set. Used by CMS165
+(Controlling High Blood Pressure). 14 SNOMED codes incl. 59621000
+(Essential hypertension). Multi-system; the binding pins a SNOMED
+filter so the matcher's PatientProfile (single-system per query)
+gets a clean code list."""
+
+ECQM_HBA1C_LAB_OID = "2.16.840.1.113883.3.464.1003.198.12.1013"
+"""eCQM 'HbA1c Laboratory Test' value set. Used by CMS122. 5 LOINC
+codes (4548-4 standard HbA1c %, 4549-2, 17855-8, 17856-6, 96595-4).
+Excludes IFCC/JDS-protocol HbA1c codes by design -- aligned with
+how Synthea's lab observations are coded. Pinned to LOINC via the
+binding's system_filter."""
 
 
 class VSACBinding(BaseModel):
@@ -101,27 +124,68 @@ def _normalize(s: str) -> str:
     return " ".join(s.lower().strip(".,;:()[]{}\"'").split())
 
 
+# Canonical FHIR coding-system URIs for use in `system_filter` on
+# multi-system value sets. Repeated rather than imported from the
+# matcher to keep the import graph one-directional.
+SNOMED_SYSTEM = "http://snomed.info/sct"
+LOINC_SYSTEM = "http://loinc.org"
+
+
 # ---- conditions ----
+#
+# Each binding's surface-form list mirrors the alias table in
+# `matcher.concept_lookup` so a `two_pass` lookup hits the registry
+# under exactly the same surface forms the legacy alias path
+# recognized. Hyperlipidemia and CKD are intentionally NOT in v0:
+# the canonical eCQM OIDs for those concepts surfaced under
+# different authorities (HL7 Patient Care WG vs. CMS) without a
+# clean single-source pin during research, so they're left to a
+# follow-on commit that can validate each candidate carefully
+# rather than guessing here.
 
 CONDITION_BINDINGS: dict[str, Binding] = {
-    # T2DM -- the canonical end-to-end test of the slice-4 wire-up.
-    # All five surface forms in the alias table point at the same
-    # eCQM Diabetes value set, so a `two_pass` lookup that misses
-    # the cache will fetch + cache once and then service every
-    # downstream call from disk.
+    # T2DM -- canonical end-to-end test of the slice-4 wire-up.
+    # All five surface forms point at the same eCQM Diabetes
+    # value set, so a single cache row services every downstream
+    # call. The fixture (tests/fixtures/vsac/diabetes_expansion.json)
+    # ships in the repo for offline tests.
     "type 2 diabetes": VSACBinding(oid=ECQM_DIABETES_OID),
     "type 2 diabetes mellitus": VSACBinding(oid=ECQM_DIABETES_OID),
     "t2dm": VSACBinding(oid=ECQM_DIABETES_OID),
     "type ii diabetes": VSACBinding(oid=ECQM_DIABETES_OID),
     "diabetes mellitus type 2": VSACBinding(oid=ECQM_DIABETES_OID),
+    # Hypertension. CMS165's Essential Hypertension value set is
+    # multi-system; binding a SNOMED filter at registry time
+    # avoids the matcher having to choose at lookup time.
+    # Fixture: tests/fixtures/vsac/hypertension_expansion.json.
+    "hypertension": VSACBinding(oid=ECQM_HYPERTENSION_OID, system_filter=SNOMED_SYSTEM),
+    "essential hypertension": VSACBinding(oid=ECQM_HYPERTENSION_OID, system_filter=SNOMED_SYSTEM),
+    "high blood pressure": VSACBinding(oid=ECQM_HYPERTENSION_OID, system_filter=SNOMED_SYSTEM),
+    "htn": VSACBinding(oid=ECQM_HYPERTENSION_OID, system_filter=SNOMED_SYSTEM),
 }
 
 
 # ---- labs ----
 #
-# Empty in v0; the next commit populates HbA1c (LOINC value set),
-# eGFR, BMI per the D-68 baseline's top-unmapped-labs ranking.
-LAB_BINDINGS: dict[str, Binding] = {}
+# HbA1c is the only lab in v0 because it's the only one with a
+# clean canonical eCQM OID we found in research and could probe
+# against live VSAC successfully. eGFR, BMI, hemoglobin, platelets
+# all remain on the follow-on list -- shape is one-line additions
+# once each OID is validated, the slice-4 plumbing already supports
+# them.
+
+LAB_BINDINGS: dict[str, Binding] = {
+    # CMS122's HbA1c Laboratory Test value set: 5 LOINC codes.
+    # All surface forms in the alias table point at the same OID
+    # so one cache row covers them all.
+    # Fixture: tests/fixtures/vsac/hba1c_lab_expansion.json.
+    "hba1c": VSACBinding(oid=ECQM_HBA1C_LAB_OID, system_filter=LOINC_SYSTEM),
+    "hemoglobin a1c": VSACBinding(oid=ECQM_HBA1C_LAB_OID, system_filter=LOINC_SYSTEM),
+    "haemoglobin a1c": VSACBinding(oid=ECQM_HBA1C_LAB_OID, system_filter=LOINC_SYSTEM),
+    "a1c": VSACBinding(oid=ECQM_HBA1C_LAB_OID, system_filter=LOINC_SYSTEM),
+    "glycated hemoglobin": VSACBinding(oid=ECQM_HBA1C_LAB_OID, system_filter=LOINC_SYSTEM),
+    "glycosylated hemoglobin": VSACBinding(oid=ECQM_HBA1C_LAB_OID, system_filter=LOINC_SYSTEM),
+}
 
 
 # ---- medications ----
@@ -193,8 +257,12 @@ def lookup_medication_binding(surface: str) -> Binding | None:
 __all__ = [
     "CONDITION_BINDINGS",
     "ECQM_DIABETES_OID",
+    "ECQM_HBA1C_LAB_OID",
+    "ECQM_HYPERTENSION_OID",
     "LAB_BINDINGS",
+    "LOINC_SYSTEM",
     "MEDICATION_BINDINGS",
+    "SNOMED_SYSTEM",
     "Binding",
     "RxNormBinding",
     "VSACBinding",

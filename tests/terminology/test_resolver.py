@@ -309,7 +309,14 @@ def test_resolve_condition_unregistered_surface_returns_none(tmp_path: Path) -> 
     assert resolver.resolve_condition("acute pancreatitis") is None
 
 
-def test_resolve_lab_returns_none_in_v0_empty_registry(tmp_path: Path) -> None:
+def test_resolve_lab_soft_fails_when_cache_empty_and_no_client(
+    tmp_path: Path,
+) -> None:
+    """`hba1c` is now in LAB_BINDINGS (HbA1c VSAC value set), but
+    the cache is empty and no vsac_client is configured -> soft-fail
+    to None. Same shape as the medication soft-fail test;
+    documents that a fresh checkout without pre-warmed cache rows
+    reproduces alias-only baseline behaviour."""
     cache = TerminologyCache(tmp_path)
     resolver = TerminologyResolver(cache, vsac_client=None)
     assert resolver.resolve_lab("hba1c") is None
