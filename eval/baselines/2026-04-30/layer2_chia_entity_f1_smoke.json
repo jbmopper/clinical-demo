@@ -1,0 +1,1545 @@
+{
+  "documents": [
+    {
+      "doc_id": "NCT00050349_inc",
+      "nct_id": "NCT00050349",
+      "section": "inclusion",
+      "gold": 54,
+      "predicted": 25,
+      "true_positive": 15,
+      "precision": 0.6,
+      "recall": 0.2777777777777778,
+      "f1": 0.37974683544303794,
+      "skipped_gold_unsupported": {},
+      "by_type": [
+        {
+          "type": "Condition",
+          "gold": 10,
+          "predicted": 11,
+          "true_positive": 5,
+          "precision": 0.45454545454545453,
+          "recall": 0.5,
+          "f1": 0.47619047619047616
+        },
+        {
+          "type": "Drug",
+          "gold": 3,
+          "predicted": 1,
+          "true_positive": 1,
+          "precision": 1.0,
+          "recall": 0.3333333333333333,
+          "f1": 0.5
+        },
+        {
+          "type": "Measurement",
+          "gold": 5,
+          "predicted": 4,
+          "true_positive": 4,
+          "precision": 1.0,
+          "recall": 0.8,
+          "f1": 0.888888888888889
+        },
+        {
+          "type": "Negation",
+          "gold": 3,
+          "predicted": 1,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Observation",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Person",
+          "gold": 1,
+          "predicted": 1,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Procedure",
+          "gold": 6,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Qualifier",
+          "gold": 3,
+          "predicted": 1,
+          "true_positive": 1,
+          "precision": 1.0,
+          "recall": 0.3333333333333333,
+          "f1": 0.5
+        },
+        {
+          "type": "Reference_point",
+          "gold": 1,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Scope",
+          "gold": 9,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Temporal",
+          "gold": 4,
+          "predicted": 1,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Value",
+          "gold": 7,
+          "predicted": 5,
+          "true_positive": 4,
+          "precision": 0.8,
+          "recall": 0.5714285714285714,
+          "f1": 0.6666666666666666
+        }
+      ],
+      "false_positives": [
+        {
+          "type": "Condition",
+          "text": "biopsy-proven metastatic carcinoid tumors",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "neuroendocrine tumors",
+          "count": 1
+        },
+        {
+          "type": "Negation",
+          "text": "not been previously irradiated",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "demonstrated progression since the radiation therapy",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "<5 x uln if liver metastases are present",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "30 days",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "negative serum pregnancy test",
+          "count": 1
+        },
+        {
+          "type": "Person",
+          "text": "female patients",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "bilateral oophorectomy",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "hysterectomy",
+          "count": 1
+        }
+      ],
+      "false_negatives": [
+        {
+          "type": "Procedure",
+          "text": "irradiated",
+          "count": 2
+        },
+        {
+          "type": "Scope",
+          "text": "bilateral oophorectomy and/or hysterectomy or to those patients who are postmenopausal",
+          "count": 2
+        },
+        {
+          "type": "Condition",
+          "text": "metastatic carcinoid tumors",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "proven",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "biopsy",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "other neuroendocrine tumors",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "islet cell, gastrinomas and vipomas",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "bone",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "biopsy-proven metastatic carcinoid tumors or other neuroendocrine tumors (islet cell, gastrinomas and vipomas",
+          "count": 1
+        },
+        {
+          "type": "Observation",
+          "text": "progression",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "radiation therapy",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "since the radiation therapy",
+          "count": 1
+        },
+        {
+          "type": "Negation",
+          "text": "not been",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "not been previously irradiated or if previously irradiated has demonstrated progression since the radiation therapy",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "major impairment of renal function",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "major impairment of hepatic function",
+          "count": 1
+        },
+        {
+          "type": "Negation",
+          "text": "no",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "major impairment of renal or hepatic function",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "liver metastases",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "<5 x uln",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "doc_id": "NCT00050349_exc",
+      "nct_id": "NCT00050349",
+      "section": "exclusion",
+      "gold": 69,
+      "predicted": 31,
+      "true_positive": 13,
+      "precision": 0.41935483870967744,
+      "recall": 0.18840579710144928,
+      "f1": 0.26,
+      "skipped_gold_unsupported": {
+        "Non-representable": 1
+      },
+      "by_type": [
+        {
+          "type": "Condition",
+          "gold": 20,
+          "predicted": 19,
+          "true_positive": 9,
+          "precision": 0.47368421052631576,
+          "recall": 0.45,
+          "f1": 0.46153846153846156
+        },
+        {
+          "type": "Device",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Drug",
+          "gold": 4,
+          "predicted": 6,
+          "true_positive": 3,
+          "precision": 0.5,
+          "recall": 0.75,
+          "f1": 0.6
+        },
+        {
+          "type": "Measurement",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Mood",
+          "gold": 0,
+          "predicted": 2,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": null,
+          "f1": null
+        },
+        {
+          "type": "Multiplier",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Negation",
+          "gold": 3,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Observation",
+          "gold": 8,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Procedure",
+          "gold": 4,
+          "predicted": 1,
+          "true_positive": 1,
+          "precision": 1.0,
+          "recall": 0.25,
+          "f1": 0.4
+        },
+        {
+          "type": "Qualifier",
+          "gold": 8,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Scope",
+          "gold": 8,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Temporal",
+          "gold": 6,
+          "predicted": 3,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Value",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        }
+      ],
+      "false_positives": [
+        {
+          "type": "Mood",
+          "text": "previously treated",
+          "count": 2
+        },
+        {
+          "type": "Condition",
+          "text": "symptomatic cns metastases",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "known brain metastases",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "stable for at least six months",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "measurable disease",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "6 months",
+          "count": 1
+        },
+        {
+          "type": "Drug",
+          "text": "radioactive directed therapies",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "unresolved diarrhea greater than grade 1",
+          "count": 1
+        },
+        {
+          "type": "Drug",
+          "text": "low dose warfarin (1 mg or less",
+          "count": 1
+        },
+        {
+          "type": "Drug",
+          "text": "experimental therapies",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "history of another malignancy",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "5 years",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "curatively treated non-melanoma skin cancer, prostate cancer, or cervical cancer in situ",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "active or suspected acute or chronic uncontrolled infection",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "medical or psychiatric illness",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "noncompliance to medical regimens",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "inability or unwillingness to return for all scheduled visits",
+          "count": 1
+        }
+      ],
+      "false_negatives": [
+        {
+          "type": "Condition",
+          "text": "brain metastases",
+          "count": 2
+        },
+        {
+          "type": "Observation",
+          "text": "history of",
+          "count": 2
+        },
+        {
+          "type": "Temporal",
+          "text": "previously",
+          "count": 2
+        },
+        {
+          "type": "Condition",
+          "text": "cns metastases",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "treated",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "been stable for",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "at least six months prior to study start",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "head ct with contrast",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "history of brain metastases",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "within the last 6 months",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "one month",
+          "count": 1
+        },
+        {
+          "type": "Observation",
+          "text": "other sites of measurable disease",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "within the last 6 months (one month if there are other sites of measurable disease",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "radioactive directed therapies",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "unresolved diarrhea",
+          "count": 1
+        },
+        {
+          "type": "Measurement",
+          "text": "grade",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "greater than 1",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "low dose",
+          "count": 1
+        },
+        {
+          "type": "Drug",
+          "text": "warfarin",
+          "count": 1
+        },
+        {
+          "type": "Multiplier",
+          "text": "1 mg or less",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "doc_id": "NCT00061308_inc",
+      "nct_id": "NCT00061308",
+      "section": "inclusion",
+      "gold": 14,
+      "predicted": 6,
+      "true_positive": 1,
+      "precision": 0.16666666666666666,
+      "recall": 0.07142857142857142,
+      "f1": 0.1,
+      "skipped_gold_unsupported": {},
+      "by_type": [
+        {
+          "type": "Condition",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Drug",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Measurement",
+          "gold": 1,
+          "predicted": 1,
+          "true_positive": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        {
+          "type": "Procedure",
+          "gold": 0,
+          "predicted": 2,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": null,
+          "f1": null
+        },
+        {
+          "type": "Reference_point",
+          "gold": 3,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Scope",
+          "gold": 1,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Temporal",
+          "gold": 3,
+          "predicted": 2,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Value",
+          "gold": 2,
+          "predicted": 1,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      ],
+      "false_positives": [
+        {
+          "type": "Temporal",
+          "text": "4 weeks",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "surgery",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "radiation therapy",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "6 months",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "0,1, or 2",
+          "count": 1
+        }
+      ],
+      "false_negatives": [
+        {
+          "type": "Drug",
+          "text": "platinum-based chemotherapy regimen",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "primary disease",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "prior",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "at least 4 weeks since last surgery or radiation therapy",
+          "count": 1
+        },
+        {
+          "type": "Reference_point",
+          "text": "last surgery",
+          "count": 1
+        },
+        {
+          "type": "Reference_point",
+          "text": "radiation therapy",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "a treatment-free interval",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "greater than 6 months following response to platinum",
+          "count": 1
+        },
+        {
+          "type": "Reference_point",
+          "text": "response to platinum",
+          "count": 1
+        },
+        {
+          "type": "Drug",
+          "text": "platinum",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "0",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "0,1",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "0,1, or 2",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "doc_id": "NCT00061308_exc",
+      "nct_id": "NCT00061308",
+      "section": "exclusion",
+      "gold": 45,
+      "predicted": 25,
+      "true_positive": 13,
+      "precision": 0.52,
+      "recall": 0.28888888888888886,
+      "f1": 0.3714285714285714,
+      "skipped_gold_unsupported": {},
+      "by_type": [
+        {
+          "type": "Condition",
+          "gold": 13,
+          "predicted": 12,
+          "true_positive": 6,
+          "precision": 0.5,
+          "recall": 0.46153846153846156,
+          "f1": 0.48000000000000004
+        },
+        {
+          "type": "Drug",
+          "gold": 7,
+          "predicted": 5,
+          "true_positive": 5,
+          "precision": 1.0,
+          "recall": 0.7142857142857143,
+          "f1": 0.8333333333333333
+        },
+        {
+          "type": "Mood",
+          "gold": 0,
+          "predicted": 1,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": null,
+          "f1": null
+        },
+        {
+          "type": "Multiplier",
+          "gold": 1,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Negation",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Observation",
+          "gold": 1,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Person",
+          "gold": 1,
+          "predicted": 1,
+          "true_positive": 1,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0
+        },
+        {
+          "type": "Procedure",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Qualifier",
+          "gold": 9,
+          "predicted": 3,
+          "true_positive": 1,
+          "precision": 0.3333333333333333,
+          "recall": 0.1111111111111111,
+          "f1": 0.16666666666666666
+        },
+        {
+          "type": "Scope",
+          "gold": 4,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Temporal",
+          "gold": 4,
+          "predicted": 2,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Value",
+          "gold": 1,
+          "predicted": 1,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      ],
+      "false_positives": [
+        {
+          "type": "Qualifier",
+          "text": "adequate contraception",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "more than one primary chemotherapy regimen",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "concomitant or previous malignancies",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "adequately treated basal cell or squamous cell skin cancer",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "disease free for 5 years",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "active uncontrolled infection",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "requiring antibiotics",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "concurrent severe medical problems",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "received radiation",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "more than 10% of bone",
+          "count": 1
+        },
+        {
+          "type": "Mood",
+          "text": "prior treatment",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "30 days",
+          "count": 1
+        }
+      ],
+      "false_negatives": [
+        {
+          "type": "Negation",
+          "text": "do not",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "adequate contraception",
+          "count": 1
+        },
+        {
+          "type": "Drug",
+          "text": "primary chemotherapy regimen",
+          "count": 1
+        },
+        {
+          "type": "Multiplier",
+          "text": "more than one",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "malignancies",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "previous",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "concomitant",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "concomitant or previous",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "basal cell skin cancer",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "squamous cell skin cancer",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "other cancer",
+          "count": 1
+        },
+        {
+          "type": "Negation",
+          "text": "the exception of",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "adequately treated",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "basal cell or squamous cell skin cancer, in situ cervical cancer, incidental carcinoid, or other cancer",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "for 5 years",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "has been disease free",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "infection",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "active uncontrolled",
+          "count": 1
+        },
+        {
+          "type": "Drug",
+          "text": "antibiotics",
+          "count": 1
+        },
+        {
+          "type": "Procedure",
+          "text": "radiation",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "doc_id": "NCT00094861_inc",
+      "nct_id": "NCT00094861",
+      "section": "inclusion",
+      "gold": 93,
+      "predicted": 27,
+      "true_positive": 8,
+      "precision": 0.2962962962962963,
+      "recall": 0.08602150537634409,
+      "f1": 0.13333333333333333,
+      "skipped_gold_unsupported": {},
+      "by_type": [
+        {
+          "type": "Condition",
+          "gold": 6,
+          "predicted": 4,
+          "true_positive": 1,
+          "precision": 0.25,
+          "recall": 0.16666666666666666,
+          "f1": 0.2
+        },
+        {
+          "type": "Drug",
+          "gold": 1,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Measurement",
+          "gold": 15,
+          "predicted": 6,
+          "true_positive": 5,
+          "precision": 0.8333333333333334,
+          "recall": 0.3333333333333333,
+          "f1": 0.47619047619047616
+        },
+        {
+          "type": "Multiplier",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Negation",
+          "gold": 2,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Observation",
+          "gold": 5,
+          "predicted": 1,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Person",
+          "gold": 2,
+          "predicted": 1,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Procedure",
+          "gold": 3,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Qualifier",
+          "gold": 8,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Reference_point",
+          "gold": 4,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Scope",
+          "gold": 17,
+          "predicted": 0,
+          "true_positive": 0,
+          "precision": null,
+          "recall": 0.0,
+          "f1": null
+        },
+        {
+          "type": "Temporal",
+          "gold": 4,
+          "predicted": 3,
+          "true_positive": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        {
+          "type": "Value",
+          "gold": 24,
+          "predicted": 12,
+          "true_positive": 2,
+          "precision": 0.16666666666666666,
+          "recall": 0.08333333333333333,
+          "f1": 0.1111111111111111
+        }
+      ],
+      "false_positives": [
+        {
+          "type": "Observation",
+          "text": "histologically or cytologically proven diagnosis",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "unresectable (locally advanced) stage iiia or iiib disease",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "30%",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "esophagus",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "6 months",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "10%",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "3 months",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "18 years",
+          "count": 1
+        },
+        {
+          "type": "Measurement",
+          "text": "ecog performance status",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "10 g/dl",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "4 weeks",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "1.5 x 10^9/l",
+          "count": 1
+        },
+        {
+          "type": "Temporal",
+          "text": "2 weeks",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "100 x 10^9/l",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "1.5 x institutional upper limit of normal (uln",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "1.4",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "50 ml/min",
+          "count": 1
+        },
+        {
+          "type": "Person",
+          "text": "females of childbearing potential",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "negative serum or urine pregnancy test",
+          "count": 1
+        }
+      ],
+      "false_negatives": [
+        {
+          "type": "Reference_point",
+          "text": "study randomization",
+          "count": 3
+        },
+        {
+          "type": "Negation",
+          "text": "without",
+          "count": 2
+        },
+        {
+          "type": "Observation",
+          "text": "growth factor use",
+          "count": 2
+        },
+        {
+          "type": "Value",
+          "text": "equal to 2.0 mg/dl",
+          "count": 2
+        },
+        {
+          "type": "Qualifier",
+          "text": "cytologically proven",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "histologically proven",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "histologically or cytologically proven",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "stage iiib disease",
+          "count": 1
+        },
+        {
+          "type": "Condition",
+          "text": "stage iiia disease",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "unresectable",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "locally advanced",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "stage iiia or iiib disease",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "esophagus",
+          "count": 1
+        },
+        {
+          "type": "Multiplier",
+          "text": "greater than 30",
+          "count": 1
+        },
+        {
+          "type": "Multiplier",
+          "text": "equal to 30%",
+          "count": 1
+        },
+        {
+          "type": "Scope",
+          "text": "greater than or equal to 30%",
+          "count": 1
+        },
+        {
+          "type": "Measurement",
+          "text": "radiotherapy",
+          "count": 1
+        },
+        {
+          "type": "Qualifier",
+          "text": "initial",
+          "count": 1
+        },
+        {
+          "type": "Observation",
+          "text": "life expectancy",
+          "count": 1
+        },
+        {
+          "type": "Value",
+          "text": "equal to 6 months",
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "gold": 275,
+  "predicted": 114,
+  "true_positive": 50,
+  "precision": 0.43859649122807015,
+  "recall": 0.18181818181818182,
+  "f1": 0.25706940874035994,
+  "macro_f1": 0.24890174804098852,
+  "by_type": [
+    {
+      "type": "Condition",
+      "gold": 51,
+      "predicted": 46,
+      "true_positive": 21,
+      "precision": 0.45652173913043476,
+      "recall": 0.4117647058823529,
+      "f1": 0.4329896907216495
+    },
+    {
+      "type": "Device",
+      "gold": 2,
+      "predicted": 0,
+      "true_positive": 0,
+      "precision": null,
+      "recall": 0.0,
+      "f1": null
+    },
+    {
+      "type": "Drug",
+      "gold": 17,
+      "predicted": 12,
+      "true_positive": 9,
+      "precision": 0.75,
+      "recall": 0.5294117647058824,
+      "f1": 0.6206896551724139
+    },
+    {
+      "type": "Measurement",
+      "gold": 23,
+      "predicted": 11,
+      "true_positive": 10,
+      "precision": 0.9090909090909091,
+      "recall": 0.43478260869565216,
+      "f1": 0.5882352941176471
+    },
+    {
+      "type": "Mood",
+      "gold": 0,
+      "predicted": 3,
+      "true_positive": 0,
+      "precision": 0.0,
+      "recall": null,
+      "f1": null
+    },
+    {
+      "type": "Multiplier",
+      "gold": 5,
+      "predicted": 0,
+      "true_positive": 0,
+      "precision": null,
+      "recall": 0.0,
+      "f1": null
+    },
+    {
+      "type": "Negation",
+      "gold": 10,
+      "predicted": 1,
+      "true_positive": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "type": "Observation",
+      "gold": 16,
+      "predicted": 1,
+      "true_positive": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "type": "Person",
+      "gold": 4,
+      "predicted": 3,
+      "true_positive": 1,
+      "precision": 0.3333333333333333,
+      "recall": 0.25,
+      "f1": 0.28571428571428575
+    },
+    {
+      "type": "Procedure",
+      "gold": 15,
+      "predicted": 3,
+      "true_positive": 1,
+      "precision": 0.3333333333333333,
+      "recall": 0.06666666666666667,
+      "f1": 0.1111111111111111
+    },
+    {
+      "type": "Qualifier",
+      "gold": 28,
+      "predicted": 4,
+      "true_positive": 2,
+      "precision": 0.5,
+      "recall": 0.07142857142857142,
+      "f1": 0.125
+    },
+    {
+      "type": "Reference_point",
+      "gold": 8,
+      "predicted": 0,
+      "true_positive": 0,
+      "precision": null,
+      "recall": 0.0,
+      "f1": null
+    },
+    {
+      "type": "Scope",
+      "gold": 39,
+      "predicted": 0,
+      "true_positive": 0,
+      "precision": null,
+      "recall": 0.0,
+      "f1": null
+    },
+    {
+      "type": "Temporal",
+      "gold": 21,
+      "predicted": 11,
+      "true_positive": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    {
+      "type": "Value",
+      "gold": 36,
+      "predicted": 19,
+      "true_positive": 6,
+      "precision": 0.3157894736842105,
+      "recall": 0.16666666666666666,
+      "f1": 0.2181818181818182
+    }
+  ],
+  "skipped_gold_unsupported": {
+    "Non-representable": 1
+  }
+}

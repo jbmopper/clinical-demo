@@ -28,9 +28,12 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Literal
 
+from clinical_demo.data.chia import ChiaDocument
+from clinical_demo.data.chia import iter_trials as iter_chia_trials
 from clinical_demo.data.clinicaltrials import trial_from_raw
 from clinical_demo.data.synthea import iter_bundles
 from clinical_demo.domain.patient import Patient
@@ -44,10 +47,14 @@ from clinical_demo.evals.diagnostics import (
     write_diagnostics,
 )
 from clinical_demo.evals.layer_one import build_layer_one_report
+from clinical_demo.evals.layer_two import build_layer_two_report, score_chia_document
 from clinical_demo.evals.report_layer_one import render_layer_one
+from clinical_demo.evals.report_layer_two import render_layer_two
 from clinical_demo.evals.run import EvalCase, RunResult, load_dataset, run_eval
 from clinical_demo.evals.store import list_runs, load_run, open_store, save_run
+from clinical_demo.extractor import ExtractionResult, extract_criteria
 from clinical_demo.scoring import (
+    StoredExtraction,
     cache_path_for,
     load_cached_extraction,
     score_pair,
@@ -62,6 +69,8 @@ DEFAULT_DB = Path("eval/runs.sqlite")
 CURATED_TRIALS_DIR = Path("data/curated/trials")
 COHORT_MANIFEST = Path("data/curated/cohort_manifest.json")
 EXTRACTIONS_DIR = Path("data/curated/extractions")
+DEFAULT_CHIA_DIR = Path("data/raw/chia")
+CHIA_EXTRACTIONS_DIR = Path("data/curated/chia_extractions")
 
 
 # --------------------- loaders (shared with scripts/score_pair.py)
@@ -152,6 +161,47 @@ def _apply_binding_strategy(strategy: Literal["alias", "two_pass"] | None) -> No
 
     get_settings.cache_clear()
     get_resolver.cache_clear()
+
+
+# --------------------- Chia layer-2 helpers
+
+
+def _iter_chia_documents(chia_dir: Path) -> Iterator[tuple[str, str, ChiaDocument]]:
+    for trial in iter_chia_trials(chia_dir):
+        if trial.inclusion is not None:
+            yield trial.nct_id, "inclusion", trial.inclusion
+        if trial.exclusion is not None:
+            yield trial.nct_id, "exclusion", trial.exclusion
+
+
+def _chia_eval_text(document: ChiaDocument, *, section: str) -> str:
+    header = "Inclusion Criteria" if section == "inclusion" else "Exclusion Criteria"
+    return f"{header}:\n{document.source_text}"
+
+
+def _load_or_extract_chia_document(
+    document: ChiaDocument,
+    *,
+    section: str,
+    cache_dir: Path,
+    force: bool,
+    no_llm: bool,
+) -> ExtractionResult:
+    cache_file = cache_path_for(document.doc_id, cache_dir)
+    if cache_file.exists() and not force:
+        return load_cached_extraction(cache_file)
+    if no_llm:
+        raise FileNotFoundError(f"--no-llm requires cached extraction at {cache_file}")
+
+    result = extract_criteria(_chia_eval_text(document, section=section))
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    stored = StoredExtraction(
+        nct_id=document.doc_id,
+        extraction=result.extracted,
+        meta=result.meta,
+    )
+    cache_file.write_text(stored.model_dump_json(indent=2) + "\n")
+    return result
 
 
 # --------------------- summary rendering
@@ -250,6 +300,74 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     print(_summarize(run))
     return 0 if run.n_errors == 0 else 2
+
+
+def _cmd_chia(args: argparse.Namespace) -> int:
+    chia_dir = Path(args.chia_dir)
+    if not chia_dir.exists():
+        print(f"error: Chia directory {chia_dir} not found", file=sys.stderr)
+        return 1
+
+    selected = set(args.doc_id) if args.doc_id else None
+    docs = [
+        (nct_id, section, document)
+        for nct_id, section, document in _iter_chia_documents(chia_dir)
+        if selected is None or document.doc_id in selected
+    ]
+    if args.limit is not None:
+        docs = docs[: args.limit]
+    if not docs:
+        print("error: no Chia documents matched the filter", file=sys.stderr)
+        return 1
+
+    cache_dir = Path(args.cache_dir)
+    reports = []
+    total_cost = 0.0
+    n_with_cost = 0
+    print(f"running Chia layer-2 eval on {len(docs)} document(s)...", file=sys.stderr)
+    for nct_id, section, document in docs:
+        try:
+            extraction = _load_or_extract_chia_document(
+                document,
+                section=section,
+                cache_dir=cache_dir,
+                force=args.force,
+                no_llm=args.no_llm,
+            )
+        except Exception as exc:
+            print(f"error: {document.doc_id}: {exc}", file=sys.stderr)
+            return 2
+        if extraction.meta.cost_usd is not None:
+            total_cost += extraction.meta.cost_usd
+            n_with_cost += 1
+        report = score_chia_document(
+            document,
+            extraction.extracted,
+            nct_id=nct_id,
+            section=section,
+        )
+        reports.append(report)
+        print(
+            f"  [ ok] {document.doc_id}  gold={report.gold} pred={report.predicted} "
+            f"tp={report.true_positive} f1={report.f1 if report.f1 is not None else 'n/a'}",
+            file=sys.stderr,
+        )
+
+    aggregate = build_layer_two_report(reports)
+    if args.output_json is not None:
+        out = Path(args.output_json)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(aggregate.model_dump_json(indent=2) + "\n")
+    if n_with_cost:
+        print(
+            f"extraction cost (sum over {n_with_cost} document(s)): ${total_cost:.4f}",
+            file=sys.stderr,
+        )
+    if args.format == "json":
+        print(aggregate.model_dump_json(indent=2))
+    else:
+        print(render_layer_two(aggregate))
+    return 0
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
@@ -361,6 +479,37 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--limit", type=int, default=None)
     p_run.add_argument("--notes", default="")
     p_run.set_defaults(func=_cmd_run)
+
+    p_chia = sub.add_parser(
+        "chia",
+        help="Run layer-2 extractor entity-mention F1 against Chia.",
+    )
+    p_chia.add_argument("--chia-dir", default=str(DEFAULT_CHIA_DIR))
+    p_chia.add_argument("--cache-dir", default=str(CHIA_EXTRACTIONS_DIR))
+    p_chia.add_argument("--limit", type=int, default=None)
+    p_chia.add_argument(
+        "--doc-id",
+        action="append",
+        default=None,
+        help="Filter to one or more Chia document ids like NCT00050349_inc.",
+    )
+    p_chia.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Require cached Chia extractions; never call the LLM.",
+    )
+    p_chia.add_argument(
+        "--force",
+        action="store_true",
+        help="Ignore existing Chia extraction cache and regenerate.",
+    )
+    p_chia.add_argument("--format", choices=("text", "json"), default="text")
+    p_chia.add_argument(
+        "--output-json",
+        default=None,
+        help="Optional path to write the layer-2 report JSON.",
+    )
+    p_chia.set_defaults(func=_cmd_chia)
 
     p_report = sub.add_parser("report", help="Render a persisted run; or list runs.")
     p_report.add_argument("--db", default=str(DEFAULT_DB))
