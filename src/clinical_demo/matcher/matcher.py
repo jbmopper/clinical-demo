@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..domain.patient import LabObservation
 from ..domain.trial import Trial
 from ..evals.seed import parse_age_years
 from ..extractor.schema import (
@@ -49,7 +50,7 @@ from ..extractor.schema import (
     TemporalWindowCriterion,
 )
 from ..profile import PatientProfile, ThresholdResult
-from ..profile.profile import ThresholdOp
+from ..profile.profile import ConceptSet, ThresholdOp
 from .concept_lookup import lookup_condition, lookup_lab, lookup_medication
 from .verdict import (
     ConditionEvidence,
@@ -455,12 +456,9 @@ def _match_measurement(
             [],
         )
 
-    # The ConceptSet is single-code at v0; pick the (only) code.
-    loinc_code = next(iter(concept_set.codes))
-
     op = payload.operator
     if op in ("in_range", "out_of_range"):
-        return _match_range(payload, loinc_code, op, profile)
+        return _match_range(payload, concept_set, op, profile)
     if op not in ("<", "<=", "=", ">=", ">"):
         return (
             "indeterminate",
@@ -475,6 +473,11 @@ def _match_measurement(
             f"One-sided operator {op!r} requires `value`, got None.",
             [],
         )
+
+    obs = _latest_lab_for_concept_set(profile, concept_set)
+    if obs is None:
+        return _no_lab_data(payload, concept_set)
+    loinc_code = obs.concept.code
 
     profile_op = _to_profile_op(op)
     result = profile.meets_threshold(loinc_code, profile_op, payload.value, payload.unit)
@@ -491,7 +494,7 @@ def _to_profile_op(op: str) -> ThresholdOp:
 
 def _match_range(
     payload: MeasurementCriterion,
-    loinc_code: str,
+    concept_set: ConceptSet,
     op: str,
     profile: PatientProfile,
 ) -> tuple[Verdict, VerdictReason, str, list[Evidence]]:
@@ -514,6 +517,11 @@ def _match_range(
             f"Range threshold for {payload.measurement_text!r} has no unit.",
             [],
         )
+
+    obs = _latest_lab_for_concept_set(profile, concept_set)
+    if obs is None:
+        return _no_lab_data(payload, concept_set)
+    loinc_code = obs.concept.code
 
     low_result = profile.meets_threshold(loinc_code, ">=", payload.value_low, payload.unit)
     high_result = profile.meets_threshold(loinc_code, "<=", payload.value_high, payload.unit)
@@ -633,6 +641,51 @@ def _threshold_to_verdict(
             f"units do not canonicalize to the same quantity."
         ),
         [],
+    )
+
+
+def _latest_lab_for_concept_set(
+    profile: PatientProfile,
+    concept_set: ConceptSet,
+) -> LabObservation | None:
+    """Latest patient observation across every LOINC in a lab ConceptSet.
+
+    The original v0 matcher assumed each lab concept mapped to exactly
+    one LOINC. D-69's terminology bridge can return value sets with
+    multiple equivalent LOINCs, so choosing `next(iter(codes))` makes
+    verdicts depend on frozenset iteration order. Instead, ask the
+    patient profile for each code and compare against the most recent
+    observation actually present.
+    """
+
+    observations = [
+        obs
+        for code in sorted(concept_set.codes)
+        for obs in [profile.latest_lab(code)]
+        if obs is not None and obs.concept.system == concept_set.system
+    ]
+    if not observations:
+        return None
+    return max(observations, key=lambda obs: (obs.effective_date, obs.concept.code))
+
+
+def _no_lab_data(
+    payload: MeasurementCriterion,
+    concept_set: ConceptSet,
+) -> tuple[Verdict, VerdictReason, str, list[Evidence]]:
+    codes = ", ".join(sorted(concept_set.codes))
+    return (
+        "indeterminate",
+        "no_data",
+        f"No lab observation for {payload.measurement_text!r}.",
+        [
+            MissingEvidence(
+                looked_for=(
+                    f"latest lab in {concept_set.name!r} ({concept_set.system}; codes={codes})"
+                ),
+                note="patient has no observation for this lab concept set",
+            )
+        ],
     )
 
 

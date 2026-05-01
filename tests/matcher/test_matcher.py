@@ -15,6 +15,7 @@ from __future__ import annotations
 from datetime import date
 
 from clinical_demo.matcher import MATCHER_VERSION, match_criterion
+from clinical_demo.profile.profile import ConceptSet
 from tests.matcher._fixtures import (
     AS_OF,
     crit_age,
@@ -185,6 +186,35 @@ def test_measurement_threshold_does_not_meet_fails() -> None:
     assert v.verdict == "fail"
 
 
+def test_measurement_threshold_checks_all_codes_in_concept_set(monkeypatch) -> None:
+    """Terminology-backed lab sets can contain multiple LOINCs.
+
+    The matcher must use the patient observation that actually exists,
+    not whichever code happens to come first in a frozenset.
+    """
+    expanded_hba1c = ConceptSet(
+        name="expanded HbA1c",
+        system="http://loinc.org",
+        codes=frozenset({"17856-6", "4548-4", "96595-4"}),
+    )
+    monkeypatch.setattr(
+        "clinical_demo.matcher.matcher.lookup_lab",
+        lambda text: expanded_hba1c if text == "hba1c" else None,
+    )
+    profile = make_profile(
+        observations=[make_lab(loinc="4548-4", value=6.0, unit="%")],
+    )
+    v = match_criterion(
+        crit_measurement(text="hba1c", operator=">=", value=6.5, unit="%"),
+        profile,
+        make_trial(),
+    )
+    assert v.verdict == "fail"
+    assert v.reason == "ok"
+    assert v.evidence[0].kind == "lab"
+    assert v.evidence[0].model_dump()["concept"]["code"] == "4548-4"
+
+
 def test_measurement_no_lab_returns_no_data() -> None:
     """Honest no-data signal — the matcher's job is to surface this,
     not to silently fail the criterion."""
@@ -210,6 +240,27 @@ def test_measurement_unit_mismatch() -> None:
     )
     assert v.verdict == "indeterminate"
     assert v.reason == "unit_mismatch"
+
+
+def test_measurement_bp_accepts_trial_mmhg_against_synthea_ucum() -> None:
+    """Trial text uses `mmHg`; Synthea stores BP components as `mm[Hg]`."""
+    profile = make_profile(
+        observations=[make_lab(loinc="8480-6", value=138.0, unit="mm[Hg]")],
+    )
+    v = match_criterion(
+        crit_measurement(
+            text="systolic blood pressure",
+            operator=">",
+            value=160.0,
+            unit="mmHg",
+            polarity="exclusion",
+        ),
+        profile,
+        make_trial(),
+    )
+    assert v.verdict == "pass"
+    assert v.reason == "ok"
+    assert any(e.kind == "lab" for e in v.evidence)
 
 
 def test_measurement_equality_operator_translates_to_profile() -> None:

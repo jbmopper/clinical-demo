@@ -325,6 +325,14 @@ def test_meets_threshold_unit_aliases_recognized() -> None:
     assert result == ThresholdResult.MEETS
 
 
+def test_meets_threshold_bp_accepts_plain_mmhg_threshold() -> None:
+    """Trial criteria usually say `mmHg`; Synthea BP observations use UCUM `mm[Hg]`."""
+    p = _patient(observations=[_lab("8480-6", 138.0, unit="mm[Hg]", on_date=AS_OF)])
+    prof = PatientProfile(p, AS_OF)
+    result = prof.meets_threshold("8480-6", ">", 160.0, "mmHg")
+    assert result == ThresholdResult.DOES_NOT_MEET
+
+
 @pytest.mark.parametrize(
     "op, value, expected",
     [

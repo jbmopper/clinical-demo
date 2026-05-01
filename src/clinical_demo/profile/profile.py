@@ -94,8 +94,8 @@ _UNIT_ALIASES: dict[str, dict[str, str]] = {
     # LDL — only mg/dL in our data; mmol/L would need conversion.
     "18262-6": {"mg/dL": "mg/dL"},
     # Systolic / diastolic blood pressure.
-    "8480-6": {"mm[Hg]": "mmHg"},
-    "8462-4": {"mm[Hg]": "mmHg"},
+    "8480-6": {"mm[Hg]": "mmHg", "mmHg": "mmHg"},
+    "8462-4": {"mm[Hg]": "mmHg", "mmHg": "mmHg"},
 }
 
 
