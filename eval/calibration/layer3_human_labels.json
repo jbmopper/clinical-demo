@@ -1,0 +1,227 @@
+[
+  {
+    "pair_id": "060e72d3__NCT05713006",
+    "criterion_index": 0,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "060e72d3__NCT05713006",
+    "criterion_index": 1,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "060e72d3__NCT05713006",
+    "criterion_index": 2,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "060e72d3__NCT05713006",
+    "criterion_index": 3,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "060e72d3__NCT05713006",
+    "criterion_index": 4,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "060e72d3__NCT05713006",
+    "criterion_index": 7,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "060e72d3__NCT05713006",
+    "criterion_index": 9,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "1293efbb__NCT06524960",
+    "criterion_index": 0,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "1293efbb__NCT06524960",
+    "criterion_index": 2,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "1293efbb__NCT06524960",
+    "criterion_index": 10,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "1293efbb__NCT06964087",
+    "criterion_index": 2,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "28db1c55__NCT06941441",
+    "criterion_index": 0,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "28db1c55__NCT06941441",
+    "criterion_index": 5,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "28db1c55__NCT06941441",
+    "criterion_index": 19,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "2e555528__NCT06475781",
+    "criterion_index": 28,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "38f38890__NCT06217302",
+    "criterion_index": 2,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "38f38890__NCT06217302",
+    "criterion_index": 4,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "38f38890__NCT07489209",
+    "criterion_index": 2,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "38f38890__NCT07489209",
+    "criterion_index": 23,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "3beee40e__NCT06143566",
+    "criterion_index": 3,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "a9a2c4dd__NCT05998863",
+    "criterion_index": 3,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "a9a2c4dd__NCT05998863",
+    "criterion_index": 4,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "c2786fee__NCT06217302",
+    "criterion_index": 2,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "c2786fee__NCT06217302",
+    "criterion_index": 4,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  },
+  {
+    "pair_id": "d57e867e__NCT06143566",
+    "criterion_index": 3,
+    "label": "correct",
+    "reviewer": null,
+    "rationale": "",
+    "expected_matcher_verdict": null,
+    "correct_answer": ""
+  }
+]

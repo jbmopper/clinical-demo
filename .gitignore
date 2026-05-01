@@ -29,3 +29,5 @@ eval/runs.sqlite-*
 # PLAN task 2.7 / decision D-68).
 
 __marimo__/
+.playwright-mcp
+.claude/

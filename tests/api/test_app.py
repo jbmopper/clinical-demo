@@ -125,6 +125,8 @@ def test_layer3_calibration_returns_rows_with_existing_labels(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    stub_patient: Patient,
+    stub_trial: Trial,
 ) -> None:
     db_path = tmp_path / "runs.sqlite"
     labels_path = tmp_path / "labels.json"
@@ -134,6 +136,8 @@ def test_layer3_calibration_returns_rows_with_existing_labels(
     )
     monkeypatch.setattr(api_app, "DEFAULT_EVAL_DB", db_path)
     monkeypatch.setattr(api_app, "DEFAULT_LAYER3_LABELS", labels_path)
+    monkeypatch.setattr(api_app, "load_patient", lambda _: stub_patient)
+    monkeypatch.setattr(api_app, "load_trial", lambda _: stub_trial)
 
     response = client.get("/layer3/calibration", params={"run_id": "run-1", "limit": 1})
 
@@ -142,6 +146,8 @@ def test_layer3_calibration_returns_rows_with_existing_labels(
     assert body["label_path"] == str(labels_path)
     assert body["rows"][0]["pair_id"] == "p1__T1"
     assert body["rows"][0]["matcher_verdict"] == "pass"
+    assert body["rows"][0]["source_context"]["patient"][0]["label"] == "Sex"
+    assert body["rows"][0]["source_context"]["trial"][0]["label"] == "Title"
     assert body["rows"][0]["existing_label"]["label"] == "correct"
 
 

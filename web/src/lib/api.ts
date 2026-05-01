@@ -159,6 +159,22 @@ export interface LayerThreeHumanLabel {
 	correct_answer: string;
 }
 
+export interface LayerThreeSourceRecord {
+	source: 'patient' | 'trial';
+	kind: string;
+	label: string;
+	value: string;
+	date?: string | null;
+	code?: string | null;
+	system?: string | null;
+	status?: string | null;
+}
+
+export interface LayerThreeSourceContext {
+	patient: LayerThreeSourceRecord[];
+	trial: LayerThreeSourceRecord[];
+}
+
 export interface LayerThreeCalibrationRow {
 	pair_id: string;
 	patient_id: string;
@@ -174,6 +190,7 @@ export interface LayerThreeCalibrationRow {
 	matcher_reason: VerdictReason;
 	matcher_rationale: string;
 	evidence: Evidence[];
+	source_context?: LayerThreeSourceContext | null;
 	existing_label: LayerThreeHumanLabel | null;
 }
 

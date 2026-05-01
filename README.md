@@ -5,72 +5,35 @@ AI Forward Deployed Engineer interview.
 
 > **Status: Phase 2 in progress.** Phase 1 deliverables (curated
 > data, extractor v0, deterministic matcher v0, end-to-end
-> `score_pair`, Langfuse tracing) are complete. Phase 2 task 2.1
-> landed the LangGraph orchestrator (`score_pair_graph()`) with
-> per-criterion fan-out, a deterministic-first router, an LLM
-> matcher node for free-text criteria, and a join+rollup. Phase 2
-> task 2.2 has now landed the **aggregator + critic loop**
-> (`rollup → critic → [revise → rollup | finalize]`) with closed-enum
-> process findings, bounded revisions, no-progress detection, and
-> an opt-in `interrupt_before` human checkpoint on `finalize`.
-> Imperative `score_pair()` and the graph version run side-by-side.
-> Phase 2 task 2.3 landed the eval harness scaffolding;
-> task 2.4 added a layer-1 (deterministic) eval (`agreement` +
-> `coverage` per field, `eval report --layer 1`); task 2.9
-> landed the **FastAPI backend** (`/health`, `/patients`,
-> `/trials`, `POST /score`) ahead of order so the reviewer UI
-> has something to call. Task 2.8 then landed the **reviewer UI**
-> as a SvelteKit dev rig under `web/` — single-page, picks a
-> patient + trial, dispatches `POST /score`, and renders the
-> per-criterion verdicts as colored pills with click-to-expand
-> evidence. First end-to-end demo run surfaced a length-overflow
-> on the largest curated trial; D-65 promotes the LLM-call token
-> caps into `Settings`, raises the extractor cap from 4096 to the
-> model's 16384 ceiling, and converts
-> `openai.LengthFinishReasonError` from a 500 into a graceful
-> empty extraction with cost preserved. Second run surfaced a
-> stale-cache hit re-pumping a malformed criterion through the
-> matcher; D-66 makes that fail soft (matcher emits
-> `indeterminate(extractor_invariant_violation)` per-criterion
-> instead of crashing the trial) and revs the cache filename to
-> embed the prompt version, an 8-char schema fingerprint, and the
-> extractor model — so any of those three changing automatically
-> invalidates stale envelopes (the schema fingerprint hashes the
-> live `ExtractedCriteria.model_json_schema()`, so adding a field
-> invalidates for free). Task 2.7 then landed the **first
-> baseline regression**: two cache-warm eval runs (imperative +
-> graph + critic) over all 49 pairs, snapshotted under
-> `eval/baselines/2026-04-21/` with `SUMMARY.md` (provenance,
-> per-field numbers, slice rollup) and `INDETERMINACY.md`
-> (per-criterion `(verdict, reason, kind)` diagnostic answering
-> "why so much indeterminacy"). Layer-1 numbers: 81% agreement /
-> 55% coverage, identical between orchestrators. Diagnostic
-> finding: 89% of indeterminates are `unmapped_concept`, with
-> conditions dominating over labs over medications — the
-> top-impact next investment is concept-vocabulary expansion
-> (~200-300 verdicts could move). Side fix: SQLite store schema
-> bumped v1→v2 with an additive `ALTER TABLE` migration (D-67)
-> so persisted runs carry their labels; was a silent
-> layer-1-empty-report bug. Decisions D-67, D-68.
-> **453 tests passing** (Python; the UI is a thin
-> presentation layer over the API and is exercised manually).
-> Up next (PLAN task 2.10 / D-69): move the concept bridge from
-> hand-curated aliases toward NLM terminology APIs. Slices 1–3
-> are in: a VSAC FHIR `$expand` client with UMLS API-key plumbing,
-> an on-disk `TerminologyCache` with auto-invalidating envelope
-> fingerprint and atomic writes (mirrors the D-66 extractor cache
-> discipline) so eval re-runs don't pay the NLM round-trip per
-> pair, and a RxNorm REST client that resolves drug surface forms
-> into a ConceptSet of RxCUIs (RxNav is public, no API key needed
-> — fresh checkouts can probe medications without an NLM
-> account). Matcher behavior still uses the existing alias tables
-> until a resolver is wired through `concept_lookup.py`. Next
-> slice wires the resolver behind a `binding_strategy` switch
-> (alias path stays as fallback), then re-runs the eval harness
-> against the D-68 baseline to measure the `unmapped_concept`
-> delta.
-> Then layer-2 (Chia F1) + layer-3 (LLM-as-judge) eval layers. The
-> UI gets ported into `juliusm.com` for the public-facing demo.
+> `score_pair`, Langfuse tracing) are complete. Phase 2 has the
+> LangGraph orchestrator (`score_pair_graph()`), critic loop, eval
+> harness, FastAPI backend, and SvelteKit reviewer dev rig in
+> place. The terminology bridge has moved from hand-curated
+> aliases toward NLM-backed resolution: VSAC expansion, RxNorm
+> lookup, cached terminology envelopes, resolver wiring, and a
+> two-pass eval rerun are in. The latest two-pass regression
+> improved `unmapped_concept` rate from 81.9% to 60.8%, layer-1
+> coverage from 55.3% to 98.7%, and agreement from 81.0% to
+> 88.3%.
+>
+> Layer-2 Chia retained-sample work is also in: extractor-v0.5 is
+> the retained prompt with exact micro F1 37.7% and lenient micro
+> F1 58.6%. Layer-3 has judge scaffolding plus a calibration UI.
+> The first human calibration pass saved 25 labels in
+> `eval/calibration/layer3_human_labels.json`, all marked
+> `correct`. That is useful, but it mostly says the matcher is
+> honest and conservative; many "correct" verdicts are still
+> `indeterminate` because the deterministic layer lacks patient
+> evidence adjudication, condition absence reasoning, or unit
+> reconciliation. The calibration viewer now shows patient and
+> trial source context so future review can judge both the
+> deterministic verdict and the source evidence behind it.
+>
+> **576 Python tests passing**; Svelte production build verified
+> locally. Up next in Phase 2: keep the deterministic matcher as
+> the first pass, but add bounded LLM passes over retrieved
+> patient/trial sources for condition presence/absence and unit
+> reconciliation before the Phase 3 cost-quality routing sweep.
 
 ## What it is (one paragraph)
 
@@ -321,6 +284,16 @@ predicate of the criterion. The LLM matcher's verdicts carry
 `matcher_version="llm-matcher-v0.1"` so eval consumers can pivot
 on which path produced each verdict.
 
+Routing rule (planned v1, Phase 2.12-2.13): keep the deterministic
+matcher as the first pass, then route selected unresolved rows to
+bounded LLM/source-evidence passes. Examples include compound or
+unmapped condition criteria, social-history absence criteria,
+malformed extractor payloads that still have useful source text,
+and measurement thresholds whose clinical unit can be inferred
+from conventional usage. Numeric conversions remain deterministic
+and whitelisted; the LLM is used to interpret sources and propose
+the intended measurement/unit, not to silently do math.
+
 ### Critic loop (Phase 2.2)
 
 The critic is an LLM reviewer that runs *after* the rollup. It
@@ -458,10 +431,14 @@ uv run python scripts/eval.py report --run-id <id>
 uv run python scripts/eval.py report
 ```
 
-Layer-specific reporting (deterministic accuracy in 2.4, Chia
-agreement in 2.5, judge calibration in 2.6) reads `runs.sqlite`
-directly when those tasks land — the schema is stable and
-queryable from day one.
+Layer-specific reporting reads `runs.sqlite` directly: layer 1
+measures deterministic structured-field agreement/coverage, layer
+2 measures Chia entity F1, and layer 3 calibrates an LLM judge
+against human-labeled matcher verdicts. The first layer-3 human
+pass labeled 25 calibration rows as `correct`, which is a
+calibration success but also an architectural signal: a
+fail-closed deterministic matcher can be "right" while still
+leaving too many clinically useful cases unresolved.
 
 ## HTTP API (Phase 2.9)
 
@@ -522,6 +499,13 @@ rationale + typed evidence rows. Toggles for the imperative vs.
 graph orchestrator, the critic loop, and cached extraction are
 wired through to the request body so the demo can show all four
 combinations without leaving the page.
+
+The same dev rig also has a `Layer-3 calibration` mode. It loads
+stratified judge targets from persisted eval runs, lets a reviewer
+save `correct` / `incorrect` / `unjudgeable` labels, and shows
+nearby patient and trial source rows so mapping, absence, and unit
+issues can be reviewed against the underlying records rather than
+only against the matcher's rationale.
 
 ```bash
 # In one terminal: boot the API

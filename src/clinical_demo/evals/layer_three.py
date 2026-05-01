@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import time
 from collections import Counter
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
 
@@ -20,6 +21,8 @@ from openai import OpenAI
 from openai.types.chat import ParsedChatCompletion
 from pydantic import BaseModel, Field
 
+from clinical_demo.domain.patient import LabObservation, Medication, Patient
+from clinical_demo.domain.trial import Trial
 from clinical_demo.evals.run import RunResult
 from clinical_demo.extractor.extractor import (
     ExtractorError,
@@ -137,6 +140,26 @@ class LayerThreeHumanLabel(BaseModel):
     correct_answer: str = ""
 
 
+class LayerThreeSourceRecord(BaseModel):
+    """One human-readable row from the underlying patient or trial source."""
+
+    source: Literal["patient", "trial"]
+    kind: str
+    label: str
+    value: str
+    date: str | None = None
+    code: str | None = None
+    system: str | None = None
+    status: str | None = None
+
+
+class LayerThreeSourceContext(BaseModel):
+    """Source rows that help a reviewer audit a matcher decision."""
+
+    patient: list[LayerThreeSourceRecord] = Field(default_factory=list)
+    trial: list[LayerThreeSourceRecord] = Field(default_factory=list)
+
+
 class LayerThreeCalibrationRow(BaseModel):
     """UI-ready row for human Layer-3 calibration."""
 
@@ -154,6 +177,7 @@ class LayerThreeCalibrationRow(BaseModel):
     matcher_reason: str
     matcher_rationale: str
     evidence: list[dict[str, Any]] = Field(default_factory=list)
+    source_context: LayerThreeSourceContext | None = None
     existing_label: LayerThreeHumanLabel | None = None
 
 
@@ -260,6 +284,7 @@ def build_calibration_rows(
     targets: list[JudgeTarget],
     *,
     existing_labels: list[LayerThreeHumanLabel] | None = None,
+    source_contexts: Mapping[str, LayerThreeSourceContext] | None = None,
 ) -> list[LayerThreeCalibrationRow]:
     """Convert targets into UI rows and attach any existing label."""
 
@@ -283,10 +308,164 @@ def build_calibration_rows(
                 matcher_reason=target.verdict.reason,
                 matcher_rationale=target.verdict.rationale,
                 evidence=[e.model_dump(mode="json") for e in target.verdict.evidence],
+                source_context=source_contexts.get(target.pair_id) if source_contexts else None,
                 existing_label=labels.get((target.pair_id, target.criterion_index)),
             )
         )
     return rows
+
+
+def build_source_context(
+    patient: Patient,
+    trial: Trial,
+    *,
+    max_conditions: int = 40,
+    max_observations: int = 40,
+    max_medications: int = 30,
+) -> LayerThreeSourceContext:
+    """Build compact patient/trial source rows for calibration review.
+
+    The source panel is deliberately broader than matcher evidence. When
+    a concept is unmapped, the matcher has no patient evidence to cite,
+    but reviewers still need to inspect candidate chart rows to decide
+    whether the mapping table is missing a synonym/code.
+    """
+
+    return LayerThreeSourceContext(
+        patient=[
+            LayerThreeSourceRecord(
+                source="patient",
+                kind="demographics",
+                label="Sex",
+                value=patient.sex,
+            ),
+            LayerThreeSourceRecord(
+                source="patient",
+                kind="demographics",
+                label="Birth date",
+                value=patient.birth_date.isoformat(),
+            ),
+            *_patient_condition_rows(patient, limit=max_conditions),
+            *_patient_observation_rows(patient, limit=max_observations),
+            *_patient_medication_rows(patient, limit=max_medications),
+        ],
+        trial=[
+            LayerThreeSourceRecord(
+                source="trial",
+                kind="trial_field",
+                label="Title",
+                value=trial.title,
+            ),
+            LayerThreeSourceRecord(
+                source="trial",
+                kind="trial_field",
+                label="Conditions",
+                value=", ".join(trial.conditions) if trial.conditions else "(none listed)",
+            ),
+            LayerThreeSourceRecord(
+                source="trial",
+                kind="trial_field",
+                label="Eligibility text",
+                value=trial.eligibility_text,
+            ),
+            LayerThreeSourceRecord(
+                source="trial",
+                kind="trial_field",
+                label="Minimum age",
+                value=trial.minimum_age or "(not specified)",
+            ),
+            LayerThreeSourceRecord(
+                source="trial",
+                kind="trial_field",
+                label="Maximum age",
+                value=trial.maximum_age or "(not specified)",
+            ),
+            LayerThreeSourceRecord(
+                source="trial",
+                kind="trial_field",
+                label="Sex",
+                value=trial.sex,
+            ),
+        ],
+    )
+
+
+def _patient_condition_rows(patient: Patient, *, limit: int) -> list[LayerThreeSourceRecord]:
+    conditions = sorted(
+        patient.conditions,
+        key=lambda c: (c.onset_date is not None, c.onset_date),
+        reverse=True,
+    )
+    return [
+        LayerThreeSourceRecord(
+            source="patient",
+            kind="condition",
+            label=c.concept.display or c.concept.code or "Condition",
+            value=c.concept.display or c.concept.code or "",
+            date=c.onset_date.isoformat() if c.onset_date else None,
+            code=c.concept.code or None,
+            system=c.concept.system or None,
+            status=_condition_status(c),
+        )
+        for c in conditions[:limit]
+    ]
+
+
+def _patient_observation_rows(patient: Patient, *, limit: int) -> list[LayerThreeSourceRecord]:
+    latest_by_code: dict[str, LabObservation] = {}
+    for obs in patient.observations:
+        existing = latest_by_code.get(obs.concept.code)
+        if existing is None or obs.effective_date > existing.effective_date:
+            latest_by_code[obs.concept.code] = obs
+    observations = sorted(
+        latest_by_code.values(),
+        key=lambda obs: (obs.concept.display or obs.concept.code, obs.effective_date),
+    )
+    return [
+        LayerThreeSourceRecord(
+            source="patient",
+            kind="observation",
+            label=obs.concept.display or obs.concept.code or "Observation",
+            value=f"{obs.value:g} {obs.unit}".strip(),
+            date=obs.effective_date.isoformat(),
+            code=obs.concept.code or None,
+            system=obs.concept.system or None,
+        )
+        for obs in observations[:limit]
+    ]
+
+
+def _patient_medication_rows(patient: Patient, *, limit: int) -> list[LayerThreeSourceRecord]:
+    medications = sorted(patient.medications, key=_medication_sort_key, reverse=True)
+    return [
+        LayerThreeSourceRecord(
+            source="patient",
+            kind="medication",
+            label=m.concept.display or m.concept.code or "Medication",
+            value=m.concept.display or m.concept.code or "",
+            date=m.start_date.isoformat(),
+            code=m.concept.code or None,
+            system=m.concept.system or None,
+            status="active" if m.end_date is None else f"ended {m.end_date.isoformat()}",
+        )
+        for m in medications[:limit]
+    ]
+
+
+def _condition_status(condition: Any) -> str:
+    if not condition.is_clinical:
+        return "non-clinical"
+    if condition.abatement_date is None:
+        return "active or unresolved"
+    return f"ended {condition.abatement_date.isoformat()}"
+
+
+def _medication_sort_key(medication: Medication) -> tuple:
+    return (
+        medication.end_date is None,
+        medication.start_date,
+        medication.concept.display or medication.concept.code or "",
+    )
 
 
 def judge_target(
@@ -563,9 +742,12 @@ __all__ = [
     "LayerThreeHumanLabel",
     "LayerThreeJudgment",
     "LayerThreeReport",
+    "LayerThreeSourceContext",
+    "LayerThreeSourceRecord",
     "build_calibration_rows",
     "build_judge_user_message",
     "build_layer_three_report",
+    "build_source_context",
     "compute_agreement",
     "judge_target",
     "load_human_labels",

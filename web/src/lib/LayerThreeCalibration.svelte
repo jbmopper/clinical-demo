@@ -179,6 +179,12 @@
 		current.reviewer = reviewer || null;
 		labels = { ...labels, [rowKey(row)]: current };
 	}
+
+	function shortSystem(system?: string | null): string {
+		if (!system) return '';
+		const parts = system.split('/');
+		return parts[parts.length - 1] || system;
+	}
 </script>
 
 <section class="calibration">
@@ -271,6 +277,64 @@
 							<p>{row.matcher_rationale}</p>
 						</section>
 					</div>
+
+					{#if row.source_context}
+						<section class="source-context">
+							<div class="source-pane">
+								<div class="source-head">
+									<h3>Patient Record</h3>
+									<span>{row.patient_id}</span>
+								</div>
+								{#if row.source_context.patient.length}
+									<div class="source-table patient-source">
+										{#each row.source_context.patient as source, index (`patient-${rowKey(row)}-${index}`)}
+											<div class="source-row">
+												<span class="source-kind">{source.kind}</span>
+												<span class="source-main">
+													<strong>{source.label}</strong>
+													{#if source.value && source.value !== source.label}
+														<span>{source.value}</span>
+													{/if}
+												</span>
+												<span class="source-meta">
+													{#if source.date}{source.date}{/if}
+													{#if source.status} · {source.status}{/if}
+													{#if source.code} · {shortSystem(source.system)}:{source.code}{/if}
+												</span>
+											</div>
+										{/each}
+									</div>
+								{:else}
+									<p class="muted">No parsed patient source rows.</p>
+								{/if}
+							</div>
+
+							<div class="source-pane">
+								<div class="source-head">
+									<h3>Trial Record</h3>
+									<span>{row.nct_id}</span>
+								</div>
+								<div class="source-table">
+									{#each row.source_context.trial as source, index (`trial-${rowKey(row)}-${index}`)}
+										{#if source.label === 'Eligibility text'}
+											<details class="eligibility-source">
+												<summary>{source.label}</summary>
+												<pre>{source.value}</pre>
+											</details>
+										{:else}
+											<div class="source-row">
+												<span class="source-kind">{source.kind}</span>
+												<span class="source-main">
+													<strong>{source.label}</strong>
+													<span>{source.value}</span>
+												</span>
+											</div>
+										{/if}
+									{/each}
+								</div>
+							</div>
+						</section>
+					{/if}
 
 					{#if row.evidence.length}
 						<details>
@@ -590,6 +654,82 @@
 	.criterion {
 		white-space: pre-wrap;
 	}
+	.source-context {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+		margin: 12px 0;
+		padding: 12px 0;
+		border-top: 1px solid #e2e8f0;
+		border-bottom: 1px solid #e2e8f0;
+	}
+	.source-pane {
+		min-width: 0;
+	}
+	.source-head {
+		display: flex;
+		justify-content: space-between;
+		gap: 8px;
+		align-items: baseline;
+		margin-bottom: 6px;
+	}
+	.source-head h3 {
+		margin: 0;
+	}
+	.source-head span {
+		color: #64748b;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+			monospace;
+		font-size: 0.78rem;
+	}
+	.source-table {
+		max-height: 260px;
+		overflow: auto;
+		border: 1px solid #e2e8f0;
+		border-radius: 8px;
+	}
+	.source-row {
+		display: grid;
+		grid-template-columns: 104px minmax(0, 1fr);
+		gap: 8px;
+		padding: 7px 9px;
+		border-bottom: 1px solid #e2e8f0;
+		font-size: 0.82rem;
+	}
+	.source-row:last-child {
+		border-bottom: 0;
+	}
+	.source-kind {
+		color: #64748b;
+		font-size: 0.72rem;
+		text-transform: uppercase;
+	}
+	.source-main,
+	.source-meta {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.source-main strong,
+	.source-main span,
+	.source-meta {
+		display: block;
+	}
+	.source-main span,
+	.source-meta {
+		color: #475569;
+	}
+	.source-meta {
+		grid-column: 2;
+		font-size: 0.74rem;
+	}
+	.eligibility-source {
+		margin: 0;
+		padding: 7px 9px;
+	}
+	.eligibility-source pre {
+		max-height: 220px;
+		white-space: pre-wrap;
+	}
 	details {
 		margin: 10px 0;
 	}
@@ -680,6 +820,7 @@
 	@media (max-width: 900px) {
 		.controls,
 		.grid,
+		.source-context,
 		.right-answer {
 			grid-template-columns: 1fr;
 		}

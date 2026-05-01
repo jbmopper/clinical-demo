@@ -20,20 +20,28 @@
 
 - **Active phase:** Phase 2 — Workflow + eval.
 - **Last completed:** PLAN task 2.6 follow-up —
-  **Layer-3 calibration GUI**. Added a local browser workflow for creating
-  the human label file that calibrates the LLM judge: backend helpers now
+  **Layer-3 human calibration pass + source-context reviewer update**. The
+  initial manual pass saved 25 labels to
+  `eval/calibration/layer3_human_labels.json`; all 25 are `correct`. This is
+  a calibration win for the judge/matcher rubric, but also a product-quality
+  warning: many "correct" rows are correct because the deterministic matcher
+  is honest and fail-closed (`indeterminate` with a defensible reason), not
+  because the pipeline is clinically strong enough to resolve the case. To
+  make future review judge source evidence rather than only the matcher's
+  rationale, the calibration UI now shows patient-record and trial-record
+  source context alongside each row.
+  Previous: **Layer-3 calibration GUI**. Added a local browser workflow for
+  creating the human label file that calibrates the LLM judge: backend helpers
   select a deterministic reason/verdict-stratified sample from a persisted
   `RunResult`, convert `JudgeTarget`s into UI rows, and load/merge/save
   `LayerThreeHumanLabel` JSON. FastAPI exposes `GET /eval/runs`,
   `GET /layer3/calibration?run_id=...&limit=...`, and
   `POST /layer3/calibration`, writing by default to
-  `eval/calibration/layer3_human_labels.json`. The Svelte reviewer app now
-  has a `Score` / `Layer-3 calibration` mode switch, a calibration panel with
-  run selection, progress counts, readable criterion/verdict/evidence JSON,
+  `eval/calibration/layer3_human_labels.json`. The Svelte reviewer app has a
+  `Score` / `Layer-3 calibration` mode switch, a calibration panel with run
+  selection, progress counts, readable criterion/verdict/evidence JSON,
   `correct` / `incorrect` / `unjudgeable` radio labels, optional reviewer
-  rationale, and a save action. This does not complete calibration yet; it
-  creates the manual labeling workflow needed before rerunning
-  `scripts/eval.py judge --human-labels ...`.
+  rationale, and a save action.
   Previous: PLAN task 2.6 v0 — **Layer-3 LLM-as-judge scaffolding and
   smoke**. Added `clinical_demo.evals.layer_three` with a pinned judge
   version (`llm-judge-v0.1`) and rubric prompt (`llm-judge-rubric-v0.2`), a
@@ -365,17 +373,18 @@
   baseline regression with indeterminacy diagnostic): layer-1
   agreement 81.0%, coverage 55.3%, 89% of all indeterminates are
   `unmapped_concept`. Snapshots in `eval/baselines/2026-04-21/`.
-- **Next:** Use the Layer-3 calibration GUI to label ~30-50 verdicts from
-  the two-pass run (start with run `98568ccd090d`), save
-  `eval/calibration/layer3_human_labels.json`, then rerun
-  `scripts/eval.py judge --run-id 98568ccd090d --human-labels
+- **Next:** Rerun
+  `scripts/eval.py judge --run-id 394703892184 --human-labels
   eval/calibration/layer3_human_labels.json --output-json
-  eval/baselines/2026-04-30/layer3_judge_calibrated.json` and report
-  agreement / kappa before using judge scores as eval signal. After that:
-  3.x reliability + cost work and the `juliusm.com` deploy.
-- **Gates at HEAD:** `mypy` clean (136 source files); `ruff
-  check` + `ruff format --check` clean; `pytest` 567 / 567
-  passing; `npm run check` clean (0 Svelte errors/warnings).
+  eval/baselines/2026-04-30/layer3_judge_calibrated.json` so the first
+  human calibration pass is reflected in a committed layer-3 report. Then
+  implement the new Phase 2 correctness tasks: 2.12 (LLM patient-evidence
+  adjudication for condition presence/absence and source-grounded
+  unresolved criteria) and 2.13 (unit reconciliation / conventional-unit
+  pass). These belong before Phase 3 cost-routing, because routing economics
+  are not meaningful until the graph has the right kinds of matcher nodes.
+- **Gates at HEAD:** `ruff check` + `ruff format --check` clean; `pytest`
+  576 / 576 passing; `npm run build` clean.
 - **Branch:** `main`, local changes pending.
 
 ### Non-trivial open follow-ups
@@ -585,13 +594,15 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 | 2.3 | Eval harness scaffolding: dataset format, runner, results store, basic CLI (`eval run`, `eval report`). *Done — new `clinical_demo.evals` package adds `EvalCase` / `CaseRecord` / `RunResult` pydantic envelopes, `load_dataset()` reusing the existing `eval_seed.json` shape, and a one-call `run_eval(scorer, cases)` that's deliberately orchestrator-agnostic (the scorer is a `Callable[[EvalCase], ScorePairResult]`, so `score_pair()`, `score_pair_graph()`, and any future variants are all "just a scorer"). SQLite store (`evals.store`) is two append-only tables — `runs` plus `cases` carrying flat per-case summary cols **and** the full `ScorePairResult` as a `result_json` blob (D-60); a normalized verdicts table is deferred until a layer query motivates it. Per-case scorer exceptions are caught and recorded on the row instead of failing the run (D-62). New `scripts/eval.py` exposes `run` (with `--orchestrator`, `--no-llm`, `--critic-enabled`, `--pair-id`, `--limit`, `--notes`) and `report` (id-or-list, `--format text\|json`); `eval/runs.sqlite` is gitignored. 20 new tests across `test_run.py` (dataset round-trip, filtering, runner success + failure isolation + callback ordering) and `test_store.py` (idempotent schema + `user_version`, save/load round-trip including `extraction_meta`, append-only enforcement, failed-case persistence, listing newest-first). 360 total passing. Decisions D-59..D-63.* | 4 |
 | 2.4 | Layer 1 eval — deterministic: per-criterion accuracy on numeric/structured criteria. *Done — `evals/layer_one.py` aligns seed `CriterionVerdict`s against matcher `MatchVerdict`s per field (`min_age`, `max_age`, `sex`; `healthy_volunteers` documented uncoverable in v0), produces `LayerOneCell`s with `agree`/`disagree`/`missing` status, and rolls up per-field + overall agreement (excludes missing) and coverage (includes missing). `evals/report_layer_one.py` is a one-screen text renderer; `scripts/eval.py report --layer 1` dispatches to it (`--format json` also supported). 13 new tests. 373 total passing.* | 2 |
 | 2.5 | Layer 2 eval — reference-based: criterion extraction F1 vs. Chia annotations. *v0 done — entity-mention F1 over normalized `(type, surface)` pairs, because the extractor emits flat `mentions` but not Chia relations/equivalence groups. Added `evals.layer_two`, `report_layer_two`, and `scripts/eval.py chia` with prompt/schema/model-aware extraction caching under `data/curated/chia_extractions/`. 5-document live smoke: 275 gold, 114 predicted, 50 TP; micro precision 43.9%, recall 18.2%, F1 25.7%; macro F1 24.9%; cost $0.0078; JSON snapshot in `eval/baselines/2026-04-30/layer2_chia_entity_f1_smoke.json`. Retained 50-document sample frozen with `--sample-size 50 --sample-seed 20260430`: baseline micro F1 34.4%, macro F1 33.0%, cost $0.0588. `extractor-v0.3` mention-discipline pass improved retained micro F1 to 37.5% (+3.2 pp) and macro F1 to 35.4% (+2.4 pp), mostly via `Value`, `Temporal`, `Procedure`, `Reference_point`, and `Measurement`, but over-predicted `Observation` and barely moved `Scope`. Added overlap/containment diagnostics: same v0.3 retained sample has 159 same-type partial matches, lenient micro F1 57.4%, lenient macro F1 54.3%. `extractor-v0.4` prompt tightening regressed and was not retained. `extractor-v0.5` recovered aggregate metrics: micro F1 37.7%, macro F1 35.3%, lenient micro F1 58.6%, lenient macro F1 55.3%; it cuts `Observation` false positives but still does not solve `Observation` exact TP or `Scope` recall. Error profile in `docs/chia-layer2-error-profile.md`; next layer-2 work should be narrow `Scope` / `Observation` analysis or else moving on to layer 3, not graph-schema expansion yet.* | 4 |
-| 2.6 | Layer 3 eval — LLM-as-judge: rubric, prompt, calibration against ~30–50 hand-graded examples; report inter-rater agreement. *v0 scaffolding done — `evals.layer_three` adds a pinned judge/rubric (`llm-judge-v0.1` / `llm-judge-rubric-v0.2`), structured judge labels (`correct` / `incorrect` / `unjudgeable`), persisted-run target selection, optional human labels, agreement-rate + Cohen's kappa, and `report_layer_three`. `scripts/eval.py judge` runs the judge over a stored eval run with `--limit`, `--only-free-text`, `--human-labels`, and `--output-json`. 5-verdict live smoke on run `98568ccd090d` cost $0.0008 and saved `eval/baselines/2026-04-30/layer3_judge_smoke.json`; the smoke caught and fixed an important rubric issue so justified `indeterminate` verdicts are graded `correct`, not `unjudgeable`. Calibration GUI follow-up done — FastAPI now exposes `/eval/runs` plus `/layer3/calibration` GET/POST over deterministic stratified judge targets and JSON label persistence, and the Svelte reviewer has a `Layer-3 calibration` mode for reviewing criterion/verdict/evidence JSON, assigning human labels, adding rationale, and saving `eval/calibration/layer3_human_labels.json`. Remaining work: perform the 30–50-label pass in the GUI, rerun `scripts/eval.py judge --human-labels ...`, and report agreement/kappa before treating judge scores as an eval metric.* | 6 |
+| 2.6 | Layer 3 eval — LLM-as-judge: rubric, prompt, calibration against ~30–50 hand-graded examples; report inter-rater agreement. *v0 scaffolding done — `evals.layer_three` adds a pinned judge/rubric (`llm-judge-v0.1` / `llm-judge-rubric-v0.2`), structured judge labels (`correct` / `incorrect` / `unjudgeable`), persisted-run target selection, optional human labels, agreement-rate + Cohen's kappa, and `report_layer_three`. `scripts/eval.py judge` runs the judge over a stored eval run with `--limit`, `--only-free-text`, `--human-labels`, and `--output-json`. 5-verdict live smoke on run `98568ccd090d` cost $0.0008 and saved `eval/baselines/2026-04-30/layer3_judge_smoke.json`; the smoke caught and fixed an important rubric issue so justified `indeterminate` verdicts are graded `correct`, not `unjudgeable`. Calibration GUI follow-up done — FastAPI now exposes `/eval/runs` plus `/layer3/calibration` GET/POST over deterministic stratified judge targets and JSON label persistence, and the Svelte reviewer has a `Layer-3 calibration` mode for reviewing criterion/verdict/evidence JSON, assigning human labels, adding rationale, and saving `eval/calibration/layer3_human_labels.json`. First human pass done — 25 labels, all `correct`. Interpretation: the judge/matcher rubric is calibrated for conservative verdicts, but the result highlights the deterministic matcher's coverage weakness. Remaining work: rerun `scripts/eval.py judge --human-labels ...` and report agreement/kappa, then use 2.12/2.13 to reduce correct-but-not-useful indeterminates.* | 6 |
 | 2.7 | First baseline regression run; commit numbers to repo as `eval/baselines/`. *Done — fresh extraction over all 30 curated trials under the D-66 cache scheme (570 criteria, $0.067, ~18 min wall), then two eval runs against the 49-pair seed: imperative (`b55783ff962f`, ~14s scoring on cache-warm) and graph + critic (`ae7ac16936b8`, ~5 min). Both runs written to `eval/runs.sqlite`; layer-1 reports + pretty run summaries snapshotted under `eval/baselines/2026-04-21/` with a `SUMMARY.md` (provenance + per-field numbers + slice rollup) and an `INDETERMINACY.md` (per-criterion diagnostic answering "why so much indeterminacy"). Headline: layer-1 overall agreement 81.0%, coverage 55.3%, and identical between orchestrators (critic acts on rollup/rationale, not per-criterion structured-field dispatch). All 8 layer-1 disagreements are matcher-correct + seed-partial-label artifacts (mechanical labeler scored `min_age` independently of `max_age`). 0 `pass` eligibility verdicts across 49 pairs is real — synthea cohort × these specific trials don't align well, and the rollup is correctly conservative. Diagnostic finding: 92% of all 841 per-criterion verdicts are `indeterminate`, of which 89% are `unmapped_concept`; conditions dominate (73% of unmapped) over labs (17%) over medications (6%); top investment is concept-vocabulary expansion (D-67). Side fix landed in this task: store schema bumped v1→v2 with an additive `ALTER TABLE` migration to persist `expected_structured` and `free_text_review_status` per case, so layer-1+ analyses run from a self-contained persisted run instead of re-loading the seed file (was a silent layer-1-empty-report bug). 2 new store tests (v1→v2 migration, label round-trip), 1 existing test edited for the version bump. 393 total passing. Decisions D-67, D-68.* | 2 |
-| 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. *Done — SvelteKit single-page app under `web/` (Svelte 5, TypeScript, static adapter). Hand-typed `lib/api.ts` over the four FastAPI routes (no codegen — surface is ~30 lines and `juliusm.com` will retype anyway). Single `+page.svelte` mounts patient + trial selectors from `/patients` and `/trials`, posts `/score` with toggles for orchestrator (`imperative` \| `graph`), critic loop, cached extraction, and `as_of`; renders the `ScorePairResult` as a header card (eligibility pill + verdict counts + extractor model / cost / token meta) and a list of `<CriterionRow>`s. Each row is a click-to-expand affordance: collapsed shows polarity + kind + source bullet + verdict pill; expanded shows the matcher's rationale, typed evidence rows (lab / condition / medication / demographics / trial_field / missing), and a `<details>` with the raw extracted criterion JSON for debugging. `<VerdictPill>` is a closed-enum component over `pass` \| `fail` \| `indeterminate` with a per-verdict palette. Health badge in the header probes `/health` on mount; catalog and score errors are surfaced inline as banners (no toasts, no router). API base URL defaults to `http://127.0.0.1:8000` and is overridable via `VITE_API_BASE`. Per **D-64** this lives here as a *dev rig only* — the production reviewer surface ports into the `juliusm.com` repo, so this directory carries no JS test runner, no build pipeline beyond `vite dev`, and no deploy adapter. `web/.gitignore` covers `node_modules` / `.svelte-kit` / `build` so the repo root stays Python-only. Decision D-64. | 8 |
+| 2.8 | Svelte reviewer UI v0: side-by-side trial criteria + patient evidence; per-criterion verdict pills; click-to-source. *Done — SvelteKit single-page app under `web/` (Svelte 5, TypeScript, static adapter). Hand-typed `lib/api.ts` over the four FastAPI routes (no codegen — surface is ~30 lines and `juliusm.com` will retype anyway). Single `+page.svelte` mounts patient + trial selectors from `/patients` and `/trials`, posts `/score` with toggles for orchestrator (`imperative` \| `graph`), critic loop, cached extraction, and `as_of`; renders the `ScorePairResult` as a header card (eligibility pill + verdict counts + extractor model / cost / token meta) and a list of `<CriterionRow>`s. Each row is a click-to-expand affordance: collapsed shows polarity + kind + source bullet + verdict pill; expanded shows the matcher's rationale, typed evidence rows (lab / condition / medication / demographics / trial_field / missing), and a `<details>` with the raw extracted criterion JSON for debugging. Layer-3 calibration mode now also shows patient-record and trial-record source context so reviewers can inspect whether mappings, absence claims, and unit assumptions are grounded in the actual source rows. `<VerdictPill>` is a closed-enum component over `pass` \| `fail` \| `indeterminate` with a per-verdict palette. Health badge in the header probes `/health` on mount; catalog and score errors are surfaced inline as banners (no toasts, no router). API base URL defaults to `http://127.0.0.1:8000` and is overridable via `VITE_API_BASE`. Per **D-64** this lives here as a *dev rig only* — the production reviewer surface ports into the `juliusm.com` repo, so this directory carries no JS test runner, no build pipeline beyond `vite dev`, and no deploy adapter. `web/.gitignore` covers `node_modules` / `.svelte-kit` / `build` so the repo root stays Python-only. Decision D-64. | 8 |
 | 2.9 | Backend: minimal FastAPI endpoint that the Svelte UI calls; CORS; deploy plan for `juliusm.com`. *Done — `clinical_demo.api` package: `create_app()` factory exposing `GET /health`, `GET /patients`, `GET /trials`, `POST /score`. `/score` accepts `patient_id`, `nct_id`, optional `as_of` (defaults to today), `orchestrator` (`imperative` or `graph`), `critic_enabled`, `use_cached_extraction`, returns the existing `ScorePairResult` envelope verbatim. Loader helpers promoted out of `scripts/` into `api/loaders.py` (third caller threshold) with process-scope caches and a `CuratedDataMissing` exception for clean 503 mapping. Wide-open CORS for the v0 demo (lock down before public deploy). `scripts/serve.py` boots uvicorn. 12 new TestClient tests pin /health, listing endpoints, scoring round-trip, error mapping (404 unknown patient/trial, 503 missing curated data, 500 scorer raises, 422 missing field), and the orchestrator switch. Built ahead of 2.4-2.7 per user direction to bias toward end-to-end usability. 385 total passing.* | 3 |
 | 2.10 | **Terminology API bridge (D-69).** Replace the hand-curated trial-term bridge with NLM-backed resolution in slices. First slice: `clinical_demo.terminology` with a VSAC FHIR `$expand` client, `Settings.umls_api_key`, a live probe script, and offline parser/error-path tests. Follow-on slices: add RxNorm medication normalization, UMLS source-vocabulary search, a small cache of reviewed trial-side bindings, matcher wiring through `concept_lookup.py`, and an eval rerun comparing against the D-68 `unmapped_concept` baseline. | 10 |
 | 2.11 | **Patient structured-safety cleanup.** Carry `Patient.deceasedDateTime` through the Synthea loader/domain model and make scoring fail/skip explicitly when the patient is deceased before `as_of`. Keep it deterministic, cite the source field in evidence or API error detail, and test it before any public-demo run. | 1 |
-| **Phase 2 total** | | **~49 hr** |
+| 2.12 | **LLM patient-evidence adjudicator.** Add a bounded source-grounded LLM matcher pass for unresolved structured criteria where deterministic fail-closed behavior is honest but weak: unmapped/compound condition criteria, social-history and substance-use absence criteria, malformed extractor payloads with recoverable source text, and selected `no_data` rows where patient source rows can support a presence/absence decision. Input is the extracted criterion, deterministic verdict/reason, retrieved patient rows, and trial source text; output is strict `pass` / `fail` / `indeterminate` with cited source row IDs and a reason. This is the architectural home for "is this condition present/absent in the chart?", not a Phase 3 polish item. | 5 |
+| 2.13 | **Unit reconciliation / conventional-unit pass.** Add a hybrid unit layer for high-impact measurements before the cost-routing sweep. Deterministic code owns a small whitelisted registry and numeric conversions (initially BP mmHg, eGFR `mL/min/1.73 m2` variants, LDL-C `mmol/L` ↔ `mg/dL`, and percent-like HbA1c); an LLM/source pass may infer the intended measurement/unit from trial text when the extractor omits or phrases it oddly, but it may not perform arbitrary conversions. Rerun eval and report reductions in `unit_mismatch` / `ambiguous_criterion`. | 3 |
+| **Phase 2 total** | | **~57 hr** |
 | **Exit criterion** | Full pipeline runs through LangGraph; baseline eval numbers committed; UI shows real results from real data. | |
 
 ### Phase 3 — Cost optimization, red-team, polish, writeup
@@ -600,7 +611,7 @@ hot or slow, the *scope* gives, not the deadline — see §9.
 |---|---|---|
 | 3.1 | Model abstraction layer that lets the same node call any of 4–5 models with consistent JSON-schema enforcement. | 3 |
 | 3.2 | Cost/quality sweep: same 50–100 pairs, every model at every node, log cost + composite quality score. | 4 |
-| 3.3 | Define and implement the routing policy; re-run eval; produce the "money slide" dashboard (cost vs. quality, before/after policy). | 4 |
+| 3.3 | Define and implement the routing policy after 2.12/2.13 establish the correctness-oriented matcher nodes; re-run eval; produce the "money slide" dashboard (cost vs. quality, before/after policy). | 4 |
 | 3.4 | Red-team set: prompt injection in patient narrative fields, adversarial negation, unit confusion, temporal traps, OOD criteria. ~15–20 cases. | 4 |
 | 3.5 | Run red-team set; document failures; implement at least the cheap mitigations (input sanitization, structured-output enforcement, suspicious-pattern detection). | 4 |
 | 3.6 | **Patient note evidence slice.** Parse FHIR `DocumentReference` attachments (`content.attachment.data` first; `url` later), build a patient-note evidence index with provenance (resource id, date, section/header, excerpt/offset), retrieve only criterion-relevant snippets for free-text criteria, and add a patient-side LLM evidence step that can return `pass | fail | indeterminate` only with citations. Generated `resource.text.div` is display/fallback only, not high-trust clinical evidence. Validation set must cover explicit evidence, explicit absence, insufficient evidence, temporal/as-of boundaries, structured-vs-note contradiction, and prompt injection in note text. | 6 |
@@ -1000,6 +1011,16 @@ quantity), and the failure mode is *correctness*, not
 *availability*. The profile returns `UNIT_MISMATCH` instead, the
 matcher emits `indeterminate (unit_mismatch)`, and a human (or a
 later version with an explicit conversion table) can resolve.
+
+2026-05-01 update: keep the rejection of generic, silent UCUM
+auto-conversion, but promote a narrow explicit reconciliation
+layer into Phase 2 task 2.13. The new shape is hybrid: an
+LLM/source pass may identify that trial text intends a conventional
+unit for a known measurement, while deterministic whitelisted code
+performs any numeric conversion. First targets are the recurring
+calibration failures: BP thresholds with implicit mmHg, eGFR unit
+variants, LDL-C `mmol/L` against patient `mg/dL`, and percent-like
+HbA1c.
 
 ### D-25. ConceptSet carries the coding system URI
 **Rejected:** ConceptSet as just a `frozenset[str]` of code values.
@@ -1952,6 +1973,34 @@ versioned code sets, patient data stays coded FHIR facts, and the
 verdict comes from code-set intersection plus the existing
 date/value/unit logic.
 
+### D-70. Treat Layer-3 calibration as a signal to add bounded LLM evidence passes
+**Picked:** keep the deterministic matcher as the first pass, but
+add Phase 2 matcher nodes that can look back at the source rows
+when deterministic matching is honestly conservative. The first
+node is a patient-evidence adjudicator for condition
+presence/absence, social-history/substance-use absence criteria,
+compound condition text, and recoverable extractor payload
+failures. The second is a unit reconciliation layer where an LLM
+may infer intended measurement/unit from criterion text, but
+whitelisted deterministic code performs numeric conversions.
+
+**Why:** the first human Layer-3 calibration pass labeled 25/25
+sampled matcher verdicts as `correct`. That means the rubric and
+review UI can recognize justified fail-closed behavior, but it
+also shows that "correct" is too weak a success criterion for the
+product. If a reviewer repeatedly agrees that
+`indeterminate(unit_mismatch)` or `indeterminate(unmapped_concept)`
+is honest, the next engineering task is not more annotation. It is
+to build a source-grounded path that resolves the cases where a
+clinical coordinator would reasonably expect the system to use the
+patient chart and trial text.
+
+**Placement:** these are Phase 2 correctness tasks (2.12 and 2.13),
+after terminology expansion (2.10) and before Phase 3's model
+cost-quality sweep (3.2) and routing dashboard (3.3). Routing
+economics only become meaningful once the graph has the right
+kinds of matcher nodes to route between.
+
 ### D-9. Defer KPMG-specific framing of the writeup until Phase 3
 **Rejected:** writing the deployment readiness doc up front.
 **Why:** the writeup should be *informed by what was actually built*, not
@@ -1993,8 +2042,11 @@ match the writeup rather than the other way around.
   2.7 after the first baseline regression run; if 95%+ of
   revisions land in iteration 1, drop the default to 1.)
 - For the LLM-as-judge calibration, is there enough human-judge agreement on
-  the borderline cases for the metric to mean anything? (Decide after Phase
-  2 task 2.6 — if calibration is poor, simplify the rubric.)
+  the borderline cases for the metric to mean anything? (Initial Phase 2.6
+  pass: 25/25 human labels marked `correct`, so the rubric is usable for
+  checking matcher honesty. Remaining question: whether judge scores should
+  be weighted by usefulness / resolved-case movement once 2.12 and 2.13 add
+  source-grounded matcher paths.)
 - Will the Svelte reviewer UI integration land cleanly into the Astro
   routing on `juliusm.com`, or should it be a sibling subdomain? (Decide at
   Phase 2 task 2.9.)

@@ -23,6 +23,7 @@ from ..evals.layer_three import (
     LayerThreeCalibrationRow,
     LayerThreeHumanLabel,
     build_calibration_rows,
+    build_source_context,
     load_human_labels_if_exists,
     merge_human_labels,
     save_human_labels,
@@ -200,10 +201,29 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
         existing = load_human_labels_if_exists(labels_path)
         targets = select_stratified_judge_targets(run, limit=limit)
+        source_contexts = {}
+        for target in targets:
+            if target.pair_id in source_contexts:
+                continue
+            try:
+                patient = load_patient(target.patient_id)
+                trial = load_trial(target.nct_id)
+            except CuratedDataMissing as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(exc),
+                ) from exc
+            except FileNotFoundError as exc:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            source_contexts[target.pair_id] = build_source_context(patient, trial)
         return LayerThreeCalibrationResponse(
             run_id=run_id,
             label_path=str(labels_path),
-            rows=build_calibration_rows(targets, existing_labels=existing),
+            rows=build_calibration_rows(
+                targets,
+                existing_labels=existing,
+                source_contexts=source_contexts,
+            ),
         )
 
     @app.post(
