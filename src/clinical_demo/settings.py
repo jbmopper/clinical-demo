@@ -127,6 +127,13 @@ class Settings(BaseSettings):
     # the output itself should stay small.
     judge_max_output_tokens: int = 1024
 
+    # Dev-only calibration research helper. This asks Gemini to turn a
+    # matcher-verdict question plus public source snippets into a short
+    # reviewer-facing blurb.
+    research_model: str = "gemini-3-flash-preview"
+    research_openai_model: str = "gpt-5.4-mini"
+    research_max_output_tokens: int = 768
+
     @property
     def is_langfuse_configured(self) -> bool:
         """True iff both Langfuse credentials are set.

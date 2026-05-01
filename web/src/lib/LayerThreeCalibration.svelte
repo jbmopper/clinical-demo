@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
+		fetchCriterionResearch,
 		getLayerThreeCalibration,
 		listEvalRuns,
 		saveLayerThreeCalibration,
+		type CriterionResearchBlurb,
 		type EvalRunRow,
 		type JudgeLabel,
 		type LayerThreeCalibrationRow,
@@ -17,6 +19,9 @@
 	let reviewer = $state('');
 	let rows = $state<LayerThreeCalibrationRow[]>([]);
 	let labels = $state<Record<string, LayerThreeHumanLabel>>({});
+	let research = $state<Record<string, CriterionResearchBlurb>>({});
+	let researchLoading = $state<Record<string, boolean>>({});
+	let researchErrors = $state<Record<string, string>>({});
 	let loading = $state(false);
 	let saving = $state(false);
 	let error = $state<string | null>(null);
@@ -57,6 +62,9 @@
 				}
 			}
 			labels = nextLabels;
+			research = {};
+			researchLoading = {};
+			researchErrors = {};
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -76,7 +84,9 @@
 				criterion_index: row.criterion_index,
 				label: null,
 				reviewer: reviewer || null,
-				rationale: ''
+				rationale: '',
+				expected_matcher_verdict: null,
+				correct_answer: ''
 			};
 		}
 		return labels[key];
@@ -86,12 +96,31 @@
 		const current = ensureLabel(row);
 		current.label = label;
 		current.reviewer = reviewer || null;
+		labels = { ...labels, [rowKey(row)]: current };
 	}
 
 	function setRationale(row: LayerThreeCalibrationRow, rationale: string) {
 		const current = ensureLabel(row);
 		current.rationale = rationale;
 		current.reviewer = reviewer || null;
+		labels = { ...labels, [rowKey(row)]: current };
+	}
+
+	function setExpectedVerdict(
+		row: LayerThreeCalibrationRow,
+		verdict: LayerThreeHumanLabel['expected_matcher_verdict']
+	) {
+		const current = ensureLabel(row);
+		current.expected_matcher_verdict = verdict;
+		current.reviewer = reviewer || null;
+		labels = { ...labels, [rowKey(row)]: current };
+	}
+
+	function setCorrectAnswer(row: LayerThreeCalibrationRow, correctAnswer: string) {
+		const current = ensureLabel(row);
+		current.correct_answer = correctAnswer;
+		current.reviewer = reviewer || null;
+		labels = { ...labels, [rowKey(row)]: current };
 	}
 
 	async function saveLabels() {
@@ -110,9 +139,45 @@
 		}
 	}
 
+	async function loadResearch(row: LayerThreeCalibrationRow) {
+		const key = rowKey(row);
+		researchLoading = { ...researchLoading, [key]: true };
+		researchErrors = { ...researchErrors, [key]: '' };
+		try {
+			const result = await fetchCriterionResearch({
+				criterion_text: row.criterion_source_text,
+				criterion_kind: row.criterion_kind,
+				matcher_verdict: row.matcher_verdict,
+				matcher_reason: row.matcher_reason,
+				matcher_rationale: row.matcher_rationale,
+				matcher_evidence: row.evidence
+			});
+			research = { ...research, [key]: result };
+		} catch (err) {
+			researchErrors = {
+				...researchErrors,
+				[key]: err instanceof Error ? err.message : String(err)
+			};
+		} finally {
+			researchLoading = { ...researchLoading, [key]: false };
+		}
+	}
+
 	function formatRun(run: EvalRunRow): string {
 		const notes = run.notes ? ` · ${run.notes}` : '';
 		return `${run.run_id} · ${run.n_cases} cases${notes}`;
+	}
+
+	function applySuggestion(row: LayerThreeCalibrationRow, suggestion: CriterionResearchBlurb) {
+		const current = ensureLabel(row);
+		if (suggestion.suggested_label) {
+			current.label = suggestion.suggested_label;
+		}
+		current.expected_matcher_verdict = suggestion.suggested_expected_matcher_verdict;
+		current.correct_answer = suggestion.suggested_correct_answer;
+		current.rationale = suggestion.blurb;
+		current.reviewer = reviewer || null;
+		labels = { ...labels, [rowKey(row)]: current };
 	}
 </script>
 
@@ -175,6 +240,8 @@
 		<div class="cards">
 			{#each rows as row (rowKey(row))}
 				{@const current = labels[rowKey(row)]}
+				{@const rowResearch = research[rowKey(row)]}
+				{@const rowResearchError = researchErrors[rowKey(row)]}
 				<article class="card">
 					<header>
 						<div>
@@ -213,6 +280,75 @@
 					{:else}
 						<p class="muted">No cited evidence.</p>
 					{/if}
+
+					<section class="research">
+						<div class="research-head">
+							<h3>Research Context</h3>
+							<button
+								class="secondary"
+								onclick={() => loadResearch(row)}
+								disabled={researchLoading[rowKey(row)]}
+							>
+								{#if researchLoading[rowKey(row)]}asking…{:else}ask LLM{/if}
+							</button>
+						</div>
+						{#if rowResearchError}
+							<p class="research-error">{rowResearchError}</p>
+						{/if}
+						{#if rowResearch}
+							{#if rowResearch.gemini_error}
+								<p class="research-warning">
+									Gemini unavailable: {rowResearch.gemini_error}.
+									{#if rowResearch.provider === 'openai'}
+										Answered with OpenAI fallback.
+									{:else}
+										Showing source-backed fallback.
+									{/if}
+								</p>
+							{/if}
+							<p>{rowResearch.blurb}</p>
+							{#if rowResearch.suggested_label || rowResearch.suggested_correct_answer}
+								<div class="suggestion">
+									<div>
+										<strong>Suggested calibration</strong>
+										<p>
+											Label:
+											<code>{rowResearch.suggested_label ?? 'not specified'}</code>
+											· Expected verdict:
+											<code>{rowResearch.suggested_expected_matcher_verdict ?? 'not specified'}</code>
+										</p>
+										{#if rowResearch.suggested_correct_answer}
+											<p>{rowResearch.suggested_correct_answer}</p>
+										{/if}
+									</div>
+									<button class="secondary" onclick={() => applySuggestion(row, rowResearch)}>
+										apply suggestion
+									</button>
+								</div>
+							{/if}
+							<p class="path">
+								LLM provider: <code>{rowResearch.provider}</code> · Model:
+								<code>{rowResearch.model}</code> · Search query: <code>{rowResearch.query}</code>
+							</p>
+							<details>
+								<summary>LLM request</summary>
+								<pre>{rowResearch.gemini_prompt}</pre>
+							</details>
+							<ul>
+								{#each rowResearch.sources as source (source.url)}
+									<li>
+										<a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
+										<span>{source.snippet}</span>
+									</li>
+								{/each}
+							</ul>
+						{:else if !rowResearchError}
+							<p class="muted">
+								Ask the LLM whether the matcher verdict is justified, using public source snippets
+								as context.
+							</p>
+						{/if}
+					</section>
 
 					<div class="labels">
 						<label>
@@ -253,6 +389,36 @@
 							placeholder="optional note for calibration review"
 						></textarea>
 					</label>
+
+					<section class="right-answer">
+						<label>
+							<span>What should the matcher verdict have been?</span>
+							<select
+								value={current?.expected_matcher_verdict ?? ''}
+								onchange={(event) => {
+									const value = (event.currentTarget as HTMLSelectElement).value;
+									setExpectedVerdict(
+										row,
+										value === '' ? null : (value as LayerThreeHumanLabel['expected_matcher_verdict'])
+									);
+								}}
+							>
+								<option value="">not specified</option>
+								<option value="pass">pass</option>
+								<option value="fail">fail</option>
+								<option value="indeterminate">indeterminate</option>
+							</select>
+						</label>
+						<label>
+							<span>Right answer / correction</span>
+							<textarea
+								value={current?.correct_answer ?? ''}
+								oninput={(event) =>
+									setCorrectAnswer(row, (event.currentTarget as HTMLTextAreaElement).value)}
+								placeholder="e.g. eGFR is conventionally reported in mL/min/1.73m², so the matcher should infer the unit and compare the threshold."
+							></textarea>
+						</label>
+					</section>
 				</article>
 			{/each}
 		</div>
@@ -312,14 +478,16 @@
 		margin-bottom: 12px;
 	}
 	.controls label,
-	.rationale {
+	.rationale,
+	.right-answer label {
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 		font-size: 0.85rem;
 	}
 	.controls span,
-	.rationale span {
+	.rationale span,
+	.right-answer span {
 		color: #475569;
 		font-weight: 600;
 	}
@@ -348,6 +516,10 @@
 		background: #0f172a;
 		color: white;
 		border-color: #0f172a;
+	}
+	button.secondary {
+		padding: 5px 10px;
+		font-size: 0.8rem;
 	}
 	button:disabled {
 		opacity: 0.5;
@@ -421,6 +593,63 @@
 	details {
 		margin: 10px 0;
 	}
+	.research {
+		margin: 12px 0;
+		padding: 12px;
+		border: 1px solid #e2e8f0;
+		border-radius: 10px;
+		background: #f8fafc;
+	}
+	.research-head {
+		display: flex;
+		justify-content: space-between;
+		gap: 8px;
+		align-items: center;
+	}
+	.research h3 {
+		margin: 0;
+	}
+	.research ul {
+		margin: 8px 0 0;
+		padding-left: 18px;
+	}
+	.research li {
+		margin-bottom: 8px;
+	}
+	.research a {
+		display: block;
+		color: #1d4ed8;
+		font-weight: 700;
+	}
+	.research li span {
+		display: block;
+		color: #475569;
+		font-size: 0.85rem;
+	}
+	.research-error {
+		color: #991b1b;
+		font-size: 0.85rem;
+	}
+	.research-warning {
+		padding: 8px 10px;
+		border-radius: 8px;
+		background: #fef3c7;
+		color: #92400e;
+		font-size: 0.85rem;
+	}
+	.suggestion {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		margin: 10px 0;
+		padding: 10px;
+		border: 1px solid #bfdbfe;
+		border-radius: 10px;
+		background: #eff6ff;
+	}
+	.suggestion p {
+		margin: 4px 0 0;
+	}
 	pre {
 		overflow-x: auto;
 		padding: 10px;
@@ -440,9 +669,18 @@
 		gap: 4px;
 		font-weight: 600;
 	}
+	.right-answer {
+		display: grid;
+		grid-template-columns: minmax(180px, 240px) 1fr;
+		gap: 12px;
+		margin-top: 12px;
+		padding-top: 12px;
+		border-top: 1px solid #e2e8f0;
+	}
 	@media (max-width: 900px) {
 		.controls,
-		.grid {
+		.grid,
+		.right-answer {
 			grid-template-columns: 1fr;
 		}
 	}

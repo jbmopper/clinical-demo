@@ -155,6 +155,8 @@ export interface LayerThreeHumanLabel {
 	label: JudgeLabel | null;
 	reviewer?: string | null;
 	rationale: string;
+	expected_matcher_verdict?: Verdict | null;
+	correct_answer: string;
 }
 
 export interface LayerThreeCalibrationRow {
@@ -179,6 +181,34 @@ export interface LayerThreeCalibrationResponse {
 	run_id: string;
 	label_path: string;
 	rows: LayerThreeCalibrationRow[];
+}
+
+export interface ResearchSource {
+	title: string;
+	url: string;
+	snippet: string;
+}
+
+export interface CriterionResearchBlurb {
+	query: string;
+	provider: string;
+	model: string;
+	gemini_prompt: string;
+	blurb: string;
+	sources: ResearchSource[];
+	gemini_error: string | null;
+	suggested_label: JudgeLabel | null;
+	suggested_expected_matcher_verdict: Verdict | null;
+	suggested_correct_answer: string;
+}
+
+export interface CriterionResearchRequest {
+	criterion_text: string;
+	criterion_kind?: string;
+	matcher_verdict?: Verdict;
+	matcher_reason?: VerdictReason;
+	matcher_rationale?: string;
+	matcher_evidence?: Evidence[];
 }
 
 async function jsonOrThrow<T>(res: Response): Promise<T> {
@@ -241,6 +271,18 @@ export async function saveLayerThreeCalibration(
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ labels, label_path: labelPath })
+		})
+	);
+}
+
+export async function fetchCriterionResearch(
+	request: CriterionResearchRequest
+): Promise<CriterionResearchBlurb> {
+	return jsonOrThrow(
+		await fetch(`${API_BASE}/research/criterion`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(request)
 		})
 	);
 }

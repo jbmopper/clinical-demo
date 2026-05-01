@@ -383,6 +383,15 @@
 These are *not* blockers for the next task; they're tracked here
 so they don't get lost between sessions.
 
+- **Gemini EAP / Vertex ADC path.** The current calibration research helper
+  uses the Gemini Developer API / AI Studio API-key endpoint first and OpenAI
+  fallback second. Gemini API-key calls are currently blocked by depleted
+  AI Studio prepay credits; Google Cloud's $300 credit applies to Vertex /
+  Gemini EAP instead. If Google research assist matters later, add a separate
+  Vertex provider that uses Application Default Credentials from
+  `gcloud auth application-default login` or the EAP ADC setup script, plus
+  `GOOGLE_CLOUD_PROJECT` / region settings. Do not treat an OAuth
+  `client_secret_*.json` file as a drop-in replacement for `GOOGLE_API_KEY`.
 - **Eval seed human-review pass** (Phase 1 task 1.6): ~856
   free-text criteria across 49 pairs are still
   `free_text_review_status="pending"`. End-to-end matcher evals

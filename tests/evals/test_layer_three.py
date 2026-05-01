@@ -127,6 +127,8 @@ def test_build_calibration_rows_attaches_existing_labels() -> None:
                 criterion_index=0,
                 label="correct",
                 rationale="looks right",
+                expected_matcher_verdict="pass",
+                correct_answer="Matcher answer is already right.",
             )
         ],
     )
@@ -135,6 +137,8 @@ def test_build_calibration_rows_attaches_existing_labels() -> None:
     assert rows[0].criterion_source_text
     assert rows[0].existing_label is not None
     assert rows[0].existing_label.label == "correct"
+    assert rows[0].existing_label.expected_matcher_verdict == "pass"
+    assert rows[0].existing_label.correct_answer == "Matcher answer is already right."
 
 
 def test_merge_human_labels_preserves_unmentioned_existing_labels() -> None:
@@ -142,12 +146,23 @@ def test_merge_human_labels_preserves_unmentioned_existing_labels() -> None:
         LayerThreeHumanLabel(pair_id="a", criterion_index=0, label="correct"),
         LayerThreeHumanLabel(pair_id="b", criterion_index=1, label="incorrect"),
     ]
-    updates = [LayerThreeHumanLabel(pair_id="a", criterion_index=0, label="unjudgeable")]
+    updates = [
+        LayerThreeHumanLabel(
+            pair_id="a",
+            criterion_index=0,
+            label="unjudgeable",
+            expected_matcher_verdict="indeterminate",
+            correct_answer="Needs manual review.",
+        )
+    ]
 
     merged = merge_human_labels(existing, updates)
 
     by_key = {(label.pair_id, label.criterion_index): label.label for label in merged}
     assert by_key == {("a", 0): "unjudgeable", ("b", 1): "incorrect"}
+    updated = next(label for label in merged if label.pair_id == "a")
+    assert updated.expected_matcher_verdict == "indeterminate"
+    assert updated.correct_answer == "Needs manual review."
 
 
 def test_judge_target_uses_structured_response_and_wraps_metadata() -> None:

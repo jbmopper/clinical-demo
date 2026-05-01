@@ -21,6 +21,7 @@ from clinical_demo.domain.patient import Patient
 from clinical_demo.domain.trial import Trial
 from clinical_demo.evals.run import CaseRecord, EvalCase, RunResult
 from clinical_demo.evals.store import open_store, save_run
+from clinical_demo.research import CriterionResearchBlurb, ResearchSource
 from tests.evals._fixtures import make_age_verdict, make_score_pair_result
 
 
@@ -161,8 +162,10 @@ def test_layer3_calibration_save_merges_labels(
                 {
                     "pair_id": "p1__T1",
                     "criterion_index": 0,
-                    "label": "correct",
+                    "label": "incorrect",
                     "rationale": "supported",
+                    "expected_matcher_verdict": "fail",
+                    "correct_answer": "The matcher should infer the conventional eGFR unit.",
                 }
             ],
         },
@@ -173,6 +176,62 @@ def test_layer3_calibration_save_merges_labels(
     saved = labels_path.read_text()
     assert '"pair_id": "keep"' in saved
     assert '"pair_id": "p1__T1"' in saved
+    assert '"expected_matcher_verdict": "fail"' in saved
+    assert "conventional eGFR unit" in saved
+
+
+# ---------------- research helper
+
+
+def test_research_criterion_route_returns_source_backed_blurb(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _research(req):
+        assert req.criterion_text == "eGFR < 25"
+        assert req.matcher_rationale == "Threshold for eGFR has no unit."
+        return CriterionResearchBlurb(
+            query="eGFR < 25 clinical significance guideline",
+            provider="gemini",
+            model="gemini-3-flash-preview",
+            gemini_prompt="Matcher rationale: Threshold for eGFR has no unit.",
+            blurb="eGFR below 30 can indicate severe chronic kidney disease.",
+            suggested_label="incorrect",
+            suggested_expected_matcher_verdict="indeterminate",
+            suggested_correct_answer="The eGFR unit is conventionally inferable.",
+            sources=[
+                ResearchSource(
+                    title="Estimated Glomerular Filtration Rate",
+                    url="https://www.kidney.org/egfr",
+                    snippet="eGFR below 30 can indicate severe chronic kidney disease.",
+                )
+            ],
+        )
+
+    monkeypatch.setattr(api_app, "fetch_criterion_research", _research)
+
+    response = client.post(
+        "/research/criterion",
+        json={
+            "criterion_text": "eGFR < 25",
+            "criterion_kind": "measurement",
+            "matcher_verdict": "indeterminate",
+            "matcher_reason": "ambiguous_criterion",
+            "matcher_rationale": "Threshold for eGFR has no unit.",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["query"] == "eGFR < 25 clinical significance guideline"
+    assert body["provider"] == "gemini"
+    assert body["model"] == "gemini-3-flash-preview"
+    assert body["gemini_error"] is None
+    assert body["suggested_label"] == "incorrect"
+    assert body["suggested_expected_matcher_verdict"] == "indeterminate"
+    assert "conventionally inferable" in body["suggested_correct_answer"]
+    assert "Threshold for eGFR has no unit" in body["gemini_prompt"]
+    assert body["sources"][0]["url"] == "https://www.kidney.org/egfr"
 
 
 # ---------------- /score happy path

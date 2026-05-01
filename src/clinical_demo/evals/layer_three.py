@@ -27,7 +27,7 @@ from clinical_demo.extractor.extractor import (
     ExtractorRefusalError,
     _estimate_cost_usd,
 )
-from clinical_demo.matcher import MatchVerdict
+from clinical_demo.matcher import MatchVerdict, Verdict
 from clinical_demo.observability import traced
 from clinical_demo.settings import Settings, get_settings
 
@@ -133,6 +133,8 @@ class LayerThreeHumanLabel(BaseModel):
     label: JudgeLabel | None = None
     reviewer: str | None = None
     rationale: str = ""
+    expected_matcher_verdict: Verdict | None = None
+    correct_answer: str = ""
 
 
 class LayerThreeCalibrationRow(BaseModel):

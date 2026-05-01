@@ -29,6 +29,12 @@ from ..evals.layer_three import (
     select_stratified_judge_targets,
 )
 from ..evals.store import list_runs, load_run, open_store
+from ..research import (
+    CriterionResearchBlurb,
+    CriterionResearchRequest,
+    ResearchFetchError,
+    fetch_criterion_research,
+)
 from ..scoring import cache_path_for, load_cached_extraction, score_pair
 from ..scoring.score_pair import ScorePairResult
 from .loaders import (
@@ -217,6 +223,20 @@ def create_app() -> FastAPI:
             saved=len(merged),
         )
 
+    @app.post(
+        "/research/criterion",
+        response_model=CriterionResearchBlurb,
+        tags=["research"],
+    )
+    def criterion_research(req: CriterionResearchRequest) -> CriterionResearchBlurb:
+        try:
+            return fetch_criterion_research(req)
+        except ResearchFetchError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(exc),
+            ) from exc
+
     @app.post("/score", response_model=ScorePairResult, tags=["scoring"])
     def score(req: ScoreRequest) -> ScorePairResult:
         try:
@@ -263,6 +283,8 @@ def create_app() -> FastAPI:
 
 
 __all__ = [
+    "CriterionResearchBlurb",
+    "CriterionResearchRequest",
     "EvalRunRow",
     "LayerThreeCalibrationResponse",
     "LayerThreeCalibrationSaveRequest",
