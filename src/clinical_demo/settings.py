@@ -121,6 +121,12 @@ class Settings(BaseSettings):
     # on a ~30-criterion trial without overflow. Was 1024.
     critic_max_output_tokens: int = 2048
 
+    # Layer-3 eval judge emits one compact structured grade for a
+    # single matcher verdict. The prompt can be moderately long because
+    # it includes the criterion, verdict, rationale, and evidence, but
+    # the output itself should stay small.
+    judge_max_output_tokens: int = 1024
+
     @property
     def is_langfuse_configured(self) -> bool:
         """True iff both Langfuse credentials are set.

@@ -48,8 +48,15 @@ from clinical_demo.evals.diagnostics import (
     write_diagnostics,
 )
 from clinical_demo.evals.layer_one import build_layer_one_report
+from clinical_demo.evals.layer_three import (
+    build_layer_three_report,
+    judge_target,
+    load_human_labels,
+    select_judge_targets,
+)
 from clinical_demo.evals.layer_two import build_layer_two_report, score_chia_document
 from clinical_demo.evals.report_layer_one import render_layer_one
+from clinical_demo.evals.report_layer_three import render_layer_three
 from clinical_demo.evals.report_layer_two import render_layer_two
 from clinical_demo.evals.run import EvalCase, RunResult, load_dataset, run_eval
 from clinical_demo.evals.store import list_runs, load_run, open_store, save_run
@@ -437,6 +444,59 @@ def _cmd_chia(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_judge(args: argparse.Namespace) -> int:
+    db_path = Path(args.db)
+    if not db_path.exists():
+        print(f"error: no store at {db_path} (run an eval first?)", file=sys.stderr)
+        return 1
+    with open_store(args.db) as conn:
+        try:
+            run = load_run(conn, args.run_id)
+        except KeyError:
+            print(f"error: no run with id {args.run_id!r}", file=sys.stderr)
+            return 1
+
+    targets = select_judge_targets(
+        run,
+        limit=args.limit,
+        only_free_text=args.only_free_text,
+    )
+    if not targets:
+        print("error: no judge targets matched the filter", file=sys.stderr)
+        return 1
+
+    judgments = []
+    print(f"running layer-3 judge on {len(targets)} verdict(s)...", file=sys.stderr)
+    for target in targets:
+        try:
+            judgment = judge_target(target)
+        except Exception as exc:
+            print(
+                f"error: {target.pair_id}[{target.criterion_index}]: {type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
+        judgments.append(judgment)
+        print(
+            f"  [ ok] {target.pair_id}[{target.criterion_index}] "
+            f"matcher={target.verdict.verdict} judge={judgment.judge_label}",
+            file=sys.stderr,
+        )
+
+    human_labels = load_human_labels(args.human_labels) if args.human_labels else None
+    report = build_layer_three_report(judgments, human_labels=human_labels)
+
+    if args.output_json is not None:
+        out = Path(args.output_json)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report.model_dump_json(indent=2) + "\n")
+    if args.format == "json":
+        print(report.model_dump_json(indent=2))
+    else:
+        print(render_layer_three(report))
+    return 0
+
+
 def _cmd_report(args: argparse.Namespace) -> int:
     db_path = Path(args.db)
     if not db_path.exists():
@@ -594,6 +654,31 @@ def main(argv: list[str] | None = None) -> int:
         help="Optional path to write the layer-2 report JSON.",
     )
     p_chia.set_defaults(func=_cmd_chia)
+
+    p_judge = sub.add_parser(
+        "judge",
+        help="Run layer-3 LLM-as-judge over a persisted eval run.",
+    )
+    p_judge.add_argument("--db", default=str(DEFAULT_DB))
+    p_judge.add_argument("--run-id", required=True)
+    p_judge.add_argument("--limit", type=int, default=None)
+    p_judge.add_argument(
+        "--only-free-text",
+        action="store_true",
+        help="Judge only verdicts whose extracted criterion kind is free_text.",
+    )
+    p_judge.add_argument(
+        "--human-labels",
+        default=None,
+        help="Optional JSON list of human LayerThreeHumanLabel records for calibration.",
+    )
+    p_judge.add_argument("--format", choices=("text", "json"), default="text")
+    p_judge.add_argument(
+        "--output-json",
+        default=None,
+        help="Optional path to write the layer-3 judge report JSON.",
+    )
+    p_judge.set_defaults(func=_cmd_judge)
 
     p_report = sub.add_parser("report", help="Render a persisted run; or list runs.")
     p_report.add_argument("--db", default=str(DEFAULT_DB))
