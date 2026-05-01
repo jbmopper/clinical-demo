@@ -8,7 +8,8 @@ cohort on disk.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,7 +19,9 @@ from clinical_demo.api import create_app
 from clinical_demo.api import loaders as api_loaders
 from clinical_demo.domain.patient import Patient
 from clinical_demo.domain.trial import Trial
-from tests.evals._fixtures import make_score_pair_result
+from clinical_demo.evals.run import CaseRecord, EvalCase, RunResult
+from clinical_demo.evals.store import open_store, save_run
+from tests.evals._fixtures import make_age_verdict, make_score_pair_result
 
 
 @pytest.fixture
@@ -95,6 +98,81 @@ def test_trials_returns_rows(client: TestClient, monkeypatch: pytest.MonkeyPatch
     response = client.get("/trials")
     assert response.status_code == 200
     assert response.json() == [{"nct_id": "NCT00000001", "title": "Stub trial"}]
+
+
+# ---------------- eval calibration
+
+
+def test_eval_runs_lists_persisted_runs(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "runs.sqlite"
+    _save_stub_run(db_path)
+    monkeypatch.setattr(api_app, "DEFAULT_EVAL_DB", db_path)
+
+    response = client.get("/eval/runs")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body[0]["run_id"] == "run-1"
+    assert body[0]["n_cases"] == 1
+
+
+def test_layer3_calibration_returns_rows_with_existing_labels(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "runs.sqlite"
+    labels_path = tmp_path / "labels.json"
+    _save_stub_run(db_path)
+    labels_path.write_text(
+        '[{"pair_id":"p1__T1","criterion_index":0,"label":"correct","rationale":"ok"}]\n'
+    )
+    monkeypatch.setattr(api_app, "DEFAULT_EVAL_DB", db_path)
+    monkeypatch.setattr(api_app, "DEFAULT_LAYER3_LABELS", labels_path)
+
+    response = client.get("/layer3/calibration", params={"run_id": "run-1", "limit": 1})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["label_path"] == str(labels_path)
+    assert body["rows"][0]["pair_id"] == "p1__T1"
+    assert body["rows"][0]["matcher_verdict"] == "pass"
+    assert body["rows"][0]["existing_label"]["label"] == "correct"
+
+
+def test_layer3_calibration_save_merges_labels(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    labels_path = tmp_path / "labels.json"
+    labels_path.write_text(
+        '[{"pair_id":"keep","criterion_index":1,"label":"incorrect","rationale":"keep"}]\n'
+    )
+
+    response = client.post(
+        "/layer3/calibration",
+        json={
+            "label_path": str(labels_path),
+            "labels": [
+                {
+                    "pair_id": "p1__T1",
+                    "criterion_index": 0,
+                    "label": "correct",
+                    "rationale": "supported",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["saved"] == 2
+    saved = labels_path.read_text()
+    assert '"pair_id": "keep"' in saved
+    assert '"pair_id": "p1__T1"' in saved
 
 
 # ---------------- /score happy path
@@ -287,3 +365,33 @@ def test_score_dispatches_to_graph_when_requested(
     )
     assert response.status_code == 200, response.text
     assert seen == {"called": True, "critic_enabled": True}
+
+
+def _save_stub_run(db_path: Path) -> None:
+    case = EvalCase(
+        pair_id="p1__T1",
+        patient_id="p1",
+        nct_id="T1",
+        as_of=date(2025, 1, 1),
+        slice="test",
+    )
+    run = RunResult(
+        run_id="run-1",
+        started_at=datetime(2025, 1, 1, 0, 0, 0),
+        finished_at=datetime(2025, 1, 1, 0, 0, 1),
+        dataset_path="seed.json",
+        notes="api calibration test",
+        cases=[
+            CaseRecord(
+                case=case,
+                result=make_score_pair_result(
+                    patient_id="p1",
+                    nct_id="T1",
+                    verdicts=[make_age_verdict()],
+                ),
+                scoring_latency_ms=1.0,
+            )
+        ],
+    )
+    with open_store(db_path) as conn:
+        save_run(conn, run)

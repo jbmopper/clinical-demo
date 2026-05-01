@@ -12,12 +12,23 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from ..evals.layer_three import (
+    LayerThreeCalibrationRow,
+    LayerThreeHumanLabel,
+    build_calibration_rows,
+    load_human_labels_if_exists,
+    merge_human_labels,
+    save_human_labels,
+    select_stratified_judge_targets,
+)
+from ..evals.store import list_runs, load_run, open_store
 from ..scoring import cache_path_for, load_cached_extraction, score_pair
 from ..scoring.score_pair import ScorePairResult
 from .loaders import (
@@ -30,6 +41,9 @@ from .loaders import (
 )
 
 log = logging.getLogger(__name__)
+
+DEFAULT_EVAL_DB = Path("eval/runs.sqlite")
+DEFAULT_LAYER3_LABELS = Path("eval/calibration/layer3_human_labels.json")
 
 
 # --------------------- request / response schemas
@@ -65,6 +79,31 @@ class PatientRow(BaseModel):
     patient_id: str
     score: int | None = None
     slice: str | None = None
+
+
+class EvalRunRow(BaseModel):
+    run_id: str
+    started_at: str
+    finished_at: str
+    notes: str
+    n_cases: int
+    n_errors: int
+
+
+class LayerThreeCalibrationResponse(BaseModel):
+    run_id: str
+    label_path: str
+    rows: list[LayerThreeCalibrationRow]
+
+
+class LayerThreeCalibrationSaveRequest(BaseModel):
+    labels: list[LayerThreeHumanLabel]
+    label_path: str | None = None
+
+
+class LayerThreeCalibrationSaveResponse(BaseModel):
+    label_path: str
+    saved: int
 
 
 # --------------------- app
@@ -120,6 +159,64 @@ def create_app() -> FastAPI:
                 detail=str(exc),
             ) from exc
 
+    @app.get("/eval/runs", response_model=list[EvalRunRow], tags=["eval"])
+    def eval_runs() -> list[dict]:
+        if not DEFAULT_EVAL_DB.exists():
+            return []
+        with open_store(DEFAULT_EVAL_DB) as conn:
+            return list_runs(conn)
+
+    @app.get(
+        "/layer3/calibration",
+        response_model=LayerThreeCalibrationResponse,
+        tags=["eval"],
+    )
+    def layer3_calibration(
+        run_id: str,
+        limit: int = 50,
+        label_path: str | None = None,
+    ) -> LayerThreeCalibrationResponse:
+        if limit < 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="limit must be positive",
+            )
+        if not DEFAULT_EVAL_DB.exists():
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"eval store not found at {DEFAULT_EVAL_DB}",
+            )
+        labels_path = Path(label_path) if label_path else DEFAULT_LAYER3_LABELS
+        with open_store(DEFAULT_EVAL_DB) as conn:
+            try:
+                run = load_run(conn, run_id)
+            except KeyError as exc:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        existing = load_human_labels_if_exists(labels_path)
+        targets = select_stratified_judge_targets(run, limit=limit)
+        return LayerThreeCalibrationResponse(
+            run_id=run_id,
+            label_path=str(labels_path),
+            rows=build_calibration_rows(targets, existing_labels=existing),
+        )
+
+    @app.post(
+        "/layer3/calibration",
+        response_model=LayerThreeCalibrationSaveResponse,
+        tags=["eval"],
+    )
+    def save_layer3_calibration(
+        req: LayerThreeCalibrationSaveRequest,
+    ) -> LayerThreeCalibrationSaveResponse:
+        labels_path = Path(req.label_path) if req.label_path else DEFAULT_LAYER3_LABELS
+        existing = load_human_labels_if_exists(labels_path)
+        merged = merge_human_labels(existing, req.labels)
+        save_human_labels(labels_path, merged)
+        return LayerThreeCalibrationSaveResponse(
+            label_path=str(labels_path),
+            saved=len(merged),
+        )
+
     @app.post("/score", response_model=ScorePairResult, tags=["scoring"])
     def score(req: ScoreRequest) -> ScorePairResult:
         try:
@@ -165,4 +262,11 @@ def create_app() -> FastAPI:
     return app
 
 
-__all__ = ["ScoreRequest", "create_app"]
+__all__ = [
+    "EvalRunRow",
+    "LayerThreeCalibrationResponse",
+    "LayerThreeCalibrationSaveRequest",
+    "LayerThreeCalibrationSaveResponse",
+    "ScoreRequest",
+    "create_app",
+]

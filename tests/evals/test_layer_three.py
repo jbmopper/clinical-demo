@@ -11,15 +11,19 @@ from pydantic import SecretStr
 
 from clinical_demo.evals.layer_three import (
     LLM_JUDGE_SYSTEM_PROMPT,
+    LayerThreeHumanLabel,
     _LLMJudgeOutput,
+    build_calibration_rows,
     build_judge_user_message,
     build_layer_three_report,
     judge_target,
+    merge_human_labels,
     select_judge_targets,
+    select_stratified_judge_targets,
 )
 from clinical_demo.evals.report_layer_three import render_layer_three
 from clinical_demo.evals.run import CaseRecord, EvalCase, RunResult
-from clinical_demo.matcher import MATCHER_VERSION, MatchVerdict
+from clinical_demo.matcher import MATCHER_VERSION, MatchVerdict, Verdict, VerdictReason
 from clinical_demo.settings import Settings
 from tests.matcher._fixtures import crit_age, crit_free_text
 
@@ -46,12 +50,17 @@ def _run(records: list[CaseRecord]) -> RunResult:
     )
 
 
-def _verdict(kind: str = "age") -> MatchVerdict:
+def _verdict(
+    kind: str = "age",
+    *,
+    verdict: Verdict = "pass",
+    reason: VerdictReason = "ok",
+) -> MatchVerdict:
     criterion = crit_free_text() if kind == "free_text" else crit_age()
     return MatchVerdict(
         criterion=criterion,
-        verdict="pass",
-        reason="ok",
+        verdict=verdict,
+        reason=reason,
         rationale="test rationale",
         evidence=[],
         matcher_version=MATCHER_VERSION,
@@ -78,6 +87,67 @@ def test_select_judge_targets_skips_failed_cases_and_filters_free_text() -> None
     assert targets[0].pair_id == "ok"
     assert targets[0].criterion_index == 1
     assert targets[0].verdict.criterion.kind == "free_text"
+
+
+def test_stratified_targets_round_robin_verdict_and_reason_buckets() -> None:
+    result = make_score_pair_result(
+        verdicts=[
+            _verdict(verdict="pass"),
+            _verdict(verdict="pass"),
+            _verdict(verdict="fail"),
+            _verdict(verdict="indeterminate", reason="unmapped_concept"),
+            _verdict("free_text", verdict="indeterminate", reason="human_review_required"),
+        ]
+    )
+
+    targets = select_stratified_judge_targets(
+        _run([CaseRecord(case=_case("ok"), result=result)]),
+        limit=4,
+    )
+
+    buckets = [
+        target.verdict.reason
+        if target.verdict.verdict == "indeterminate"
+        else target.verdict.verdict
+        for target in targets
+    ]
+    assert buckets == ["fail", "human_review_required", "pass", "unmapped_concept"]
+
+
+def test_build_calibration_rows_attaches_existing_labels() -> None:
+    target = select_judge_targets(
+        _run([CaseRecord(case=_case("ok"), result=make_score_pair_result(verdicts=[_verdict()]))])
+    )[0]
+
+    rows = build_calibration_rows(
+        [target],
+        existing_labels=[
+            LayerThreeHumanLabel(
+                pair_id="ok",
+                criterion_index=0,
+                label="correct",
+                rationale="looks right",
+            )
+        ],
+    )
+
+    assert rows[0].bucket == "pass"
+    assert rows[0].criterion_source_text
+    assert rows[0].existing_label is not None
+    assert rows[0].existing_label.label == "correct"
+
+
+def test_merge_human_labels_preserves_unmentioned_existing_labels() -> None:
+    existing = [
+        LayerThreeHumanLabel(pair_id="a", criterion_index=0, label="correct"),
+        LayerThreeHumanLabel(pair_id="b", criterion_index=1, label="incorrect"),
+    ]
+    updates = [LayerThreeHumanLabel(pair_id="a", criterion_index=0, label="unjudgeable")]
+
+    merged = merge_human_labels(existing, updates)
+
+    by_key = {(label.pair_id, label.criterion_index): label.label for label in merged}
+    assert by_key == {("a", 0): "unjudgeable", ("b", 1): "incorrect"}
 
 
 def test_judge_target_uses_structured_response_and_wraps_metadata() -> None:
@@ -124,8 +194,6 @@ def test_build_layer_three_report_computes_agreement_and_kappa() -> None:
         ),
         settings=_settings(),
     )
-
-    from clinical_demo.evals.layer_three import LayerThreeHumanLabel
 
     report = build_layer_three_report(
         [judgment],

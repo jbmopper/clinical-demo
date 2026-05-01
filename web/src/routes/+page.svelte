@@ -10,7 +10,10 @@
 		type TrialRow
 	} from '$lib/api';
 	import CriterionRow from '$lib/CriterionRow.svelte';
+	import LayerThreeCalibration from '$lib/LayerThreeCalibration.svelte';
 	import VerdictPill from '$lib/VerdictPill.svelte';
+
+	let mode = $state<'score' | 'calibration'>('score');
 
 	// catalog state
 	let patients = $state<PatientRow[]>([]);
@@ -101,6 +104,13 @@
 	</div>
 </header>
 
+<nav class="modes" aria-label="Reviewer mode">
+	<button class:active={mode === 'score'} onclick={() => (mode = 'score')}>Score</button>
+	<button class:active={mode === 'calibration'} onclick={() => (mode = 'calibration')}>
+		Layer-3 calibration
+	</button>
+</nav>
+
 {#if catalogError}
 	<div class="banner err">
 		Couldn't load catalog from API: <code>{catalogError}</code>. Is
@@ -108,111 +118,115 @@
 	</div>
 {/if}
 
-<section class="form">
-	<label>
-		<span>Patient</span>
-		<select bind:value={patientId} disabled={!patients.length}>
-			{#each patients as p (p.patient_id)}
-				<option value={p.patient_id}>
-					{p.patient_id}{p.slice ? ` · ${p.slice}` : ''}
-				</option>
-			{/each}
-		</select>
-	</label>
-
-	<label>
-		<span>Trial</span>
-		<select bind:value={nctId} disabled={!trials.length}>
-			{#each trials as t (t.nct_id)}
-				<option value={t.nct_id} title={t.title}>
-					{t.nct_id} — {t.title}
-				</option>
-			{/each}
-		</select>
-	</label>
-
-	<label class="small">
-		<span>As of</span>
-		<input type="date" bind:value={asOf} />
-	</label>
-
-	<label class="small">
-		<span>Orchestrator</span>
-		<select bind:value={orchestrator}>
-			<option value="imperative">imperative</option>
-			<option value="graph">graph (LangGraph)</option>
-		</select>
-	</label>
-
-	<label class="check">
-		<input
-			type="checkbox"
-			bind:checked={criticEnabled}
-			disabled={orchestrator !== 'graph'}
-		/>
-		<span>critic loop (graph only)</span>
-	</label>
-
-	<label class="check">
-		<input type="checkbox" bind:checked={useCachedExtraction} />
-		<span>use cached extraction</span>
-	</label>
-
-	<button class="run" onclick={runScore} disabled={!canRun}>
-		{#if running}scoring…{:else}score{/if}
-	</button>
-</section>
-
-{#if runError}
-	<div class="banner err">
-		Score failed: <code>{runError}</code>
-	</div>
-{/if}
-
-{#if result}
-	<section class="result">
-		<header class="rhdr">
-			<div class="rmeta">
-				<div>
-					<span class="lbl">eligibility</span>
-					<VerdictPill verdict={result.eligibility} />
-				</div>
-				<div>
-					<span class="lbl">criteria</span>
-					<strong>{result.summary.total_criteria}</strong>
-					<span class="muted">
-						(pass {result.summary.by_verdict.pass ?? 0} ·
-						fail {result.summary.by_verdict.fail ?? 0} ·
-						indet {result.summary.by_verdict.indeterminate ?? 0})
-					</span>
-				</div>
-				<div>
-					<span class="lbl">extractor</span>
-					<code>{result.extraction_meta.model}</code>
-					<span class="muted">· {result.extraction_meta.prompt_version}</span>
-				</div>
-				<div>
-					<span class="lbl">cost / tokens</span>
-					{fmtCost(result.extraction_meta.cost_usd)}
-					<span class="muted">
-						· in {fmtTokens(result.extraction_meta.input_tokens)}
-						· out {fmtTokens(result.extraction_meta.output_tokens)}
-					</span>
-				</div>
-			</div>
-		</header>
-
-		<h2>Per-criterion verdicts</h2>
-		{#if result.verdicts.length === 0}
-			<p class="muted">No criteria extracted.</p>
-		{:else}
-			<div class="verdicts">
-				{#each result.verdicts as v, i (i)}
-					<CriterionRow {v} />
+{#if mode === 'calibration'}
+	<LayerThreeCalibration />
+{:else}
+	<section class="form">
+		<label>
+			<span>Patient</span>
+			<select bind:value={patientId} disabled={!patients.length}>
+				{#each patients as p (p.patient_id)}
+					<option value={p.patient_id}>
+						{p.patient_id}{p.slice ? ` · ${p.slice}` : ''}
+					</option>
 				{/each}
-			</div>
-		{/if}
+			</select>
+		</label>
+
+		<label>
+			<span>Trial</span>
+			<select bind:value={nctId} disabled={!trials.length}>
+				{#each trials as t (t.nct_id)}
+					<option value={t.nct_id} title={t.title}>
+						{t.nct_id} — {t.title}
+					</option>
+				{/each}
+			</select>
+		</label>
+
+		<label class="small">
+			<span>As of</span>
+			<input type="date" bind:value={asOf} />
+		</label>
+
+		<label class="small">
+			<span>Orchestrator</span>
+			<select bind:value={orchestrator}>
+				<option value="imperative">imperative</option>
+				<option value="graph">graph (LangGraph)</option>
+			</select>
+		</label>
+
+		<label class="check">
+			<input
+				type="checkbox"
+				bind:checked={criticEnabled}
+				disabled={orchestrator !== 'graph'}
+			/>
+			<span>critic loop (graph only)</span>
+		</label>
+
+		<label class="check">
+			<input type="checkbox" bind:checked={useCachedExtraction} />
+			<span>use cached extraction</span>
+		</label>
+
+		<button class="run" onclick={runScore} disabled={!canRun}>
+			{#if running}scoring…{:else}score{/if}
+		</button>
 	</section>
+
+	{#if runError}
+		<div class="banner err">
+			Score failed: <code>{runError}</code>
+		</div>
+	{/if}
+
+	{#if result}
+		<section class="result">
+			<header class="rhdr">
+				<div class="rmeta">
+					<div>
+						<span class="lbl">eligibility</span>
+						<VerdictPill verdict={result.eligibility} />
+					</div>
+					<div>
+						<span class="lbl">criteria</span>
+						<strong>{result.summary.total_criteria}</strong>
+						<span class="muted">
+							(pass {result.summary.by_verdict.pass ?? 0} ·
+							fail {result.summary.by_verdict.fail ?? 0} ·
+							indet {result.summary.by_verdict.indeterminate ?? 0})
+						</span>
+					</div>
+					<div>
+						<span class="lbl">extractor</span>
+						<code>{result.extraction_meta.model}</code>
+						<span class="muted">· {result.extraction_meta.prompt_version}</span>
+					</div>
+					<div>
+						<span class="lbl">cost / tokens</span>
+						{fmtCost(result.extraction_meta.cost_usd)}
+						<span class="muted">
+							· in {fmtTokens(result.extraction_meta.input_tokens)}
+							· out {fmtTokens(result.extraction_meta.output_tokens)}
+						</span>
+					</div>
+				</div>
+			</header>
+
+			<h2>Per-criterion verdicts</h2>
+			{#if result.verdicts.length === 0}
+				<p class="muted">No criteria extracted.</p>
+			{:else}
+				<div class="verdicts">
+					{#each result.verdicts as v, i (i)}
+						<CriterionRow {v} />
+					{/each}
+				</div>
+			{/if}
+		</section>
+	{/if}
 {/if}
 
 <style>
@@ -260,6 +274,25 @@
 		background: #fee2e2;
 		color: #7f1d1d;
 		border: 1px solid #fca5a5;
+	}
+
+	.modes {
+		display: flex;
+		gap: 8px;
+		margin-bottom: 14px;
+	}
+	.modes button {
+		padding: 8px 12px;
+		border: 1px solid #cbd5e1;
+		border-radius: 999px;
+		background: white;
+		color: #334155;
+		font-weight: 600;
+	}
+	.modes button.active {
+		background: #0f172a;
+		border-color: #0f172a;
+		color: white;
 	}
 
 	.form {

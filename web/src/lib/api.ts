@@ -8,6 +8,7 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000';
 
 export type Eligibility = 'pass' | 'fail' | 'indeterminate';
 export type Verdict = 'pass' | 'fail' | 'indeterminate';
+export type JudgeLabel = 'correct' | 'incorrect' | 'unjudgeable';
 
 export interface PatientRow {
 	patient_id: string;
@@ -29,7 +30,8 @@ export type VerdictReason =
 	| 'unsupported_kind'
 	| 'unsupported_mood'
 	| 'human_review_required'
-	| 'ambiguous_criterion';
+	| 'ambiguous_criterion'
+	| 'extractor_invariant_violation';
 
 export interface EvidenceBase {
 	kind: string;
@@ -138,6 +140,47 @@ export interface ScoreRequest {
 	use_cached_extraction?: boolean;
 }
 
+export interface EvalRunRow {
+	run_id: string;
+	started_at: string;
+	finished_at: string;
+	notes: string;
+	n_cases: number;
+	n_errors: number;
+}
+
+export interface LayerThreeHumanLabel {
+	pair_id: string;
+	criterion_index: number;
+	label: JudgeLabel | null;
+	reviewer?: string | null;
+	rationale: string;
+}
+
+export interface LayerThreeCalibrationRow {
+	pair_id: string;
+	patient_id: string;
+	nct_id: string;
+	criterion_index: number;
+	bucket: string;
+	criterion_kind: string;
+	criterion_source_text: string;
+	polarity: string;
+	negated: boolean;
+	mood: string;
+	matcher_verdict: Verdict;
+	matcher_reason: VerdictReason;
+	matcher_rationale: string;
+	evidence: Evidence[];
+	existing_label: LayerThreeHumanLabel | null;
+}
+
+export interface LayerThreeCalibrationResponse {
+	run_id: string;
+	label_path: string;
+	rows: LayerThreeCalibrationRow[];
+}
+
 async function jsonOrThrow<T>(res: Response): Promise<T> {
 	if (!res.ok) {
 		let detail: unknown;
@@ -173,6 +216,31 @@ export async function score(req: ScoreRequest): Promise<ScorePairResult> {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify(req)
+		})
+	);
+}
+
+export async function listEvalRuns(): Promise<EvalRunRow[]> {
+	return jsonOrThrow(await fetch(`${API_BASE}/eval/runs`));
+}
+
+export async function getLayerThreeCalibration(
+	runId: string,
+	limit: number
+): Promise<LayerThreeCalibrationResponse> {
+	const params = new URLSearchParams({ run_id: runId, limit: String(limit) });
+	return jsonOrThrow(await fetch(`${API_BASE}/layer3/calibration?${params}`));
+}
+
+export async function saveLayerThreeCalibration(
+	labels: LayerThreeHumanLabel[],
+	labelPath?: string
+): Promise<{ label_path: string; saved: number }> {
+	return jsonOrThrow(
+		await fetch(`${API_BASE}/layer3/calibration`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ labels, label_path: labelPath })
 		})
 	);
 }

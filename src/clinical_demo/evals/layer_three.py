@@ -130,9 +130,29 @@ class LayerThreeHumanLabel(BaseModel):
 
     pair_id: str
     criterion_index: int
-    label: JudgeLabel
+    label: JudgeLabel | None = None
     reviewer: str | None = None
     rationale: str = ""
+
+
+class LayerThreeCalibrationRow(BaseModel):
+    """UI-ready row for human Layer-3 calibration."""
+
+    pair_id: str
+    patient_id: str
+    nct_id: str
+    criterion_index: int
+    bucket: str
+    criterion_kind: str
+    criterion_source_text: str
+    polarity: str
+    negated: bool
+    mood: str
+    matcher_verdict: str
+    matcher_reason: str
+    matcher_rationale: str
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    existing_label: LayerThreeHumanLabel | None = None
 
 
 class LayerThreeAgreement(BaseModel):
@@ -197,6 +217,74 @@ def select_judge_targets(
             if limit is not None and len(targets) >= limit:
                 return targets
     return targets
+
+
+def select_stratified_judge_targets(
+    run: RunResult,
+    *,
+    limit: int = 50,
+) -> list[JudgeTarget]:
+    """Select a reason/verdict-stratified calibration sample.
+
+    This is deterministic so a reviewer can refresh the page without
+    the target set jumping around. Buckets are round-robined to avoid
+    the first large trial dominating the calibration packet.
+    """
+
+    if limit < 1:
+        raise ValueError("limit must be positive")
+
+    buckets: dict[str, list[JudgeTarget]] = {}
+    for target in select_judge_targets(run):
+        buckets.setdefault(_target_bucket(target), []).append(target)
+
+    selected: list[JudgeTarget] = []
+    bucket_names = sorted(buckets)
+    while len(selected) < limit and bucket_names:
+        next_bucket_names: list[str] = []
+        for bucket in bucket_names:
+            targets = buckets[bucket]
+            if targets:
+                selected.append(targets.pop(0))
+                if len(selected) >= limit:
+                    break
+            if targets:
+                next_bucket_names.append(bucket)
+        bucket_names = next_bucket_names
+    return selected
+
+
+def build_calibration_rows(
+    targets: list[JudgeTarget],
+    *,
+    existing_labels: list[LayerThreeHumanLabel] | None = None,
+) -> list[LayerThreeCalibrationRow]:
+    """Convert targets into UI rows and attach any existing label."""
+
+    labels = {(label.pair_id, label.criterion_index): label for label in existing_labels or []}
+    rows: list[LayerThreeCalibrationRow] = []
+    for target in targets:
+        criterion = target.verdict.criterion
+        rows.append(
+            LayerThreeCalibrationRow(
+                pair_id=target.pair_id,
+                patient_id=target.patient_id,
+                nct_id=target.nct_id,
+                criterion_index=target.criterion_index,
+                bucket=_target_bucket(target),
+                criterion_kind=criterion.kind,
+                criterion_source_text=criterion.source_text,
+                polarity=criterion.polarity,
+                negated=criterion.negated,
+                mood=criterion.mood,
+                matcher_verdict=target.verdict.verdict,
+                matcher_reason=target.verdict.reason,
+                matcher_rationale=target.verdict.rationale,
+                evidence=[e.model_dump(mode="json") for e in target.verdict.evidence],
+                existing_label=labels.get((target.pair_id, target.criterion_index)),
+            )
+        )
+    return rows
 
 
 def judge_target(
@@ -374,7 +462,9 @@ def compute_agreement(
     human_labels: list[LayerThreeHumanLabel],
 ) -> LayerThreeAgreement:
     judge_by_key = {(j.pair_id, j.criterion_index): j.judge_label for j in judgments}
-    human_by_key = {(h.pair_id, h.criterion_index): h.label for h in human_labels}
+    human_by_key = {
+        (h.pair_id, h.criterion_index): h.label for h in human_labels if h.label is not None
+    }
     shared = sorted(set(judge_by_key) & set(human_by_key))
     if not shared:
         return LayerThreeAgreement(
@@ -406,6 +496,46 @@ def load_human_labels(path: Path | str) -> list[LayerThreeHumanLabel]:
     return [LayerThreeHumanLabel.model_validate(item) for item in raw]
 
 
+def load_human_labels_if_exists(path: Path | str) -> list[LayerThreeHumanLabel]:
+    """Load human labels if present; otherwise return an empty list."""
+
+    label_path = Path(path)
+    if not label_path.exists():
+        return []
+    return load_human_labels(label_path)
+
+
+def save_human_labels(path: Path | str, labels: list[LayerThreeHumanLabel]) -> None:
+    """Persist human labels as stable, reviewer-editable JSON."""
+
+    label_path = Path(path)
+    label_path.parent.mkdir(parents=True, exist_ok=True)
+    ordered = sorted(labels, key=lambda label: (label.pair_id, label.criterion_index))
+    label_path.write_text(
+        json.dumps([label.model_dump(mode="json") for label in ordered], indent=2) + "\n"
+    )
+
+
+def merge_human_labels(
+    existing: list[LayerThreeHumanLabel],
+    updates: list[LayerThreeHumanLabel],
+) -> list[LayerThreeHumanLabel]:
+    """Merge updates into existing labels by target key."""
+
+    merged = {(label.pair_id, label.criterion_index): label for label in existing}
+    for label in updates:
+        merged[(label.pair_id, label.criterion_index)] = label
+    return list(merged.values())
+
+
+def _target_bucket(target: JudgeTarget) -> str:
+    if target.verdict.reason in {"unmapped_concept", "human_review_required"}:
+        return target.verdict.reason
+    if target.verdict.verdict in {"pass", "fail"}:
+        return target.verdict.verdict
+    return target.verdict.reason
+
+
 def _cohen_kappa(left: list[JudgeLabel], right: list[JudgeLabel]) -> float | None:
     if len(left) != len(right) or not left:
         return None
@@ -427,13 +557,19 @@ __all__ = [
     "LLM_JUDGE_VERSION",
     "JudgeTarget",
     "LayerThreeAgreement",
+    "LayerThreeCalibrationRow",
     "LayerThreeHumanLabel",
     "LayerThreeJudgment",
     "LayerThreeReport",
+    "build_calibration_rows",
     "build_judge_user_message",
     "build_layer_three_report",
     "compute_agreement",
     "judge_target",
     "load_human_labels",
+    "load_human_labels_if_exists",
+    "merge_human_labels",
+    "save_human_labels",
     "select_judge_targets",
+    "select_stratified_judge_targets",
 ]
