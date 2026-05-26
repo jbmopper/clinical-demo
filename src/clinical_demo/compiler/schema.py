@@ -62,6 +62,7 @@ ResolutionGapKind = Literal[
     "normal_range_unknown",
     "provenance_required",
     "insufficient_source",
+    "interview_required",
     "not_attempted",
 ]
 

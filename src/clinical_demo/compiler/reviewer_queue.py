@@ -23,6 +23,7 @@ RecommendedAction = Literal[
     "add_unit_mapping",
     "implement_compiler_logic",
     "decompose_compound_logic",
+    "collect_interview_answer",
     "review_gap",
 ]
 
@@ -37,6 +38,7 @@ _ACTION_BY_GAP_KIND: dict[ResolutionGapKind, RecommendedAction] = {
     "provenance_required": "implement_compiler_logic",
     "unsupported_compound": "decompose_compound_logic",
     "insufficient_source": "review_gap",
+    "interview_required": "collect_interview_answer",
     "not_attempted": "review_gap",
 }
 
@@ -48,6 +50,7 @@ _PRIORITY_BY_GAP_KIND: dict[ResolutionGapKind, int] = {
     "normal_range_unknown": 55,
     "provenance_required": 55,
     "unsupported_predicate": 60,
+    "interview_required": 75,
     "insufficient_source": 80,
     "not_attempted": 90,
 }
@@ -60,6 +63,7 @@ _SEVERITY_BY_GAP_KIND: dict[ResolutionGapKind, Severity] = {
     "normal_range_unknown": "medium",
     "provenance_required": "medium",
     "unsupported_predicate": "medium",
+    "interview_required": "low",
     "insufficient_source": "low",
     "not_attempted": "low",
 }

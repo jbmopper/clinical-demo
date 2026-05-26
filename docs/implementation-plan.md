@@ -23,6 +23,13 @@ durable production routing claim. SQLite remains the local eval store;
 DB-writing eval runs were kept serial instead of replacing the store or adding
 a merge step.
 
+**Execution note (2026-05-26).** D2 shipped as a typed compiler gap rather than
+a matcher-verdict change. The smoke artifacts live under
+`eval/baselines/2026-05-26-interview-required/`: total unresolved compiler gaps
+rise from 280 to 282 because two previously implicit free-text review blockers
+are now explicit `interview_required` gaps. Closed-world blocking cases,
+blocking findings, and `unsupported_predicate` counts stay flat.
+
 ---
 
 ## 1. Tracks at a glance
@@ -188,10 +195,10 @@ regeneration triggers** (when the patient-evidence packet must be rebuilt).
   - Code: `src/clinical_demo/extractor/fix.py` (allow-list) +
     `src/clinical_demo/compiler/schema.py` (gap-kind enum).
   - Reviewer GUI bucket: a small `web/src/lib/PatientEvidenceCalibration.svelte` rendering tweak.
-- **Eval triggers.** Frozen compiler-diagnostics gate regression check.
-  No matcher-verdict change is expected (the rollup behavior of
-  `interview_required` is identical to `human_review_required` for now), so
-  no patient-evidence rerun needed unless we change the rollup later.
+- **Eval triggers.** Cached compiler-diagnostics regression check. If a row was
+  previously over-promoted into an executable trial-exposure predicate, rerun
+  the patient-evidence report against the same labels and document the rollup
+  movement.
 - **Calibration triggers.** None — the new gap kind preserves
   `indeterminate / human_review_required` for the affected rows so calibration
   agreement is unchanged.
@@ -236,6 +243,7 @@ regeneration triggers** (when the patient-evidence packet must be rebuilt).
 | A1 reaches ≥ 20 labels                                 | `uv run python scripts/eval.py patient-evidence --run-id b47ada00d6a7 --labels ... --min-usable-labels 20` | `eval/baselines/2026-05-21-cost-quality/patient_evidence_<mode>_diagnostics.json` |
 | A2 / A3 ship                                           | Cost/quality sweep across `none`, `retrieval_only`, one `bounded_adjudication` model                 | `eval/baselines/2026-05-21-cost-quality/SUMMARY.md` + per-mode diagnostics |
 | D1 ships                                               | Re-run frozen compiler-diagnostics gate **and** patient-evidence report against the *same* labels    | `eval/baselines/2026-05-21-self-build-slice1/`                  |
+| D2 ships                                               | Re-run cached compiler diagnostics; rerun patient-evidence report if trial-participation rows now abstain | `eval/baselines/2026-05-26-interview-required/`                 |
 | D3 promotes a batch of patches into the executable registry | Compiler diagnostics gate **byte-for-byte regression check** against the previous snapshot     | New `eval/baselines/<date>-self-build-batch-N/` snapshot         |
 | Any matcher-semantics change (no current plan)         | Layer-1 + frozen compiler-diagnostics + patient-evidence reports                                     | New baseline directory                                           |
 | Extractor model change (no current plan)               | Layer-1 + Layer-2 + frozen compiler-diagnostics gate                                                 | New baseline directory                                           |

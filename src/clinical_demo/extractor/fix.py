@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from clinical_demo.criterion_review import is_interview_required_criterion_text
+
 from .composite import build_composite_criterion_groups
 from .schema import (
     CompositeCriterionGroup,
@@ -65,6 +67,26 @@ def fix_extracted_criteria(extracted: ExtractedCriteria) -> ExtractedCriteria:
 
 
 def _fix_one(criterion: ExtractedCriterion) -> _FixResult:
+    if criterion.kind == "free_text" and is_interview_required_criterion_text(
+        criterion.source_text
+    ):
+        fixed = criterion.model_copy(
+            deep=True,
+            update={
+                "free_text": FreeTextCriterion(
+                    note=(
+                        f"{CRITERION_FIX_NOTE_PREFIX}: interview_required: "
+                        "criterion asks for trial participation information outside "
+                        "structured FHIR evidence"
+                    )
+                )
+            },
+        )
+        return _FixResult(
+            criteria=[fixed],
+            note=f"marked free_text criterion {criterion.source_text!r} as interview_required",
+        )
+
     if _is_unsafe_composite(criterion):
         surface = _surface_text(criterion) or criterion.source_text
         return _FixResult(

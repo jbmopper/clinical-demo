@@ -1,0 +1,188 @@
+{
+  "artifact_safety": {
+    "public_export": "synthetic",
+    "contains_real_patient_data": false,
+    "source_data": "Synthetic Synthea patients and public ClinicalTrials.gov trial metadata."
+  },
+  "run_id": "c8cee5709c35",
+  "notes": "D2 interview_required smoke; compiled_predicates; binding_strategy=two_pass; resolver_execution_policy=cached_only; matcher_assumption_mode=closed_world_eval; llm_use_level=none; binding_strategy=two_pass; resolver_execution_policy=cached_only; matcher_assumption_mode=closed_world_eval; llm_use_level=none",
+  "n_cases": 49,
+  "n_errors": 2,
+  "scored_cases": 47,
+  "total_criteria": 1076,
+  "total_scoring_latency_ms": 19231.264918402303,
+  "avg_scoring_latency_ms": 392.4747942531082,
+  "verdict_counts": {
+    "fail": 62,
+    "indeterminate": 885,
+    "pass": 129
+  },
+  "reason_counts": {
+    "ambiguous_criterion": 14,
+    "extractor_invariant_violation": 22,
+    "human_review_required": 516,
+    "no_data": 12,
+    "ok": 191,
+    "unmapped_concept": 302,
+    "unsupported_mood": 19
+  },
+  "kind_counts": {
+    "age": 45,
+    "condition_absent": 130,
+    "condition_present": 80,
+    "free_text": 635,
+    "measurement_threshold": 144,
+    "medication_absent": 8,
+    "medication_present": 13,
+    "sex": 6,
+    "temporal_window": 15
+  },
+  "unmapped_count": 302,
+  "unmapped_rate": 0.28066914498141265,
+  "indeterminate_count": 885,
+  "indeterminate_rate": 0.8224907063197026,
+  "binding_registered_total": 27,
+  "binding_registered_resolved": 27,
+  "binding_registered_unmapped": 0,
+  "binding_registered_by_kind": {
+    "condition": {
+      "mapped": 14
+    },
+    "lab": {
+      "mapped": 12
+    },
+    "medication": {
+      "mapped": 1
+    }
+  },
+  "top_unmapped_surfaces": [
+    {
+      "surface": "pulmonary vascular resistance (PVR)",
+      "kind": "measurement_threshold",
+      "count": 7
+    },
+    {
+      "surface": "stable background therapy for PAH",
+      "kind": "temporal_window",
+      "count": 7
+    },
+    {
+      "surface": "history of full pneumonectomy",
+      "kind": "condition_absent",
+      "count": 7
+    },
+    {
+      "surface": "blood pressure",
+      "kind": "measurement_threshold",
+      "count": 5
+    },
+    {
+      "surface": "life expectancy",
+      "kind": "measurement_threshold",
+      "count": 4
+    },
+    {
+      "surface": "ECOG Performance Status",
+      "kind": "measurement_threshold",
+      "count": 3
+    },
+    {
+      "surface": "serum calcium (corrected for albumin)",
+      "kind": "measurement_threshold",
+      "count": 2
+    },
+    {
+      "surface": "vitamin D3",
+      "kind": "measurement_threshold",
+      "count": 2
+    },
+    {
+      "surface": "24-hour mean systolic blood pressure",
+      "kind": "measurement_threshold",
+      "count": 2
+    },
+    {
+      "surface": "uncontrolled severe arrhythmia",
+      "kind": "condition_absent",
+      "count": 2
+    },
+    {
+      "surface": "other diseases requiring RAAS inhibitor therapy",
+      "kind": "condition_absent",
+      "count": 2
+    },
+    {
+      "surface": "medication affecting blood pressure",
+      "kind": "temporal_window",
+      "count": 2
+    },
+    {
+      "surface": "ph-ild",
+      "kind": "condition_present",
+      "count": 2
+    },
+    {
+      "surface": "6-minute walk distance",
+      "kind": "measurement_threshold",
+      "count": 2
+    },
+    {
+      "surface": "clinical laboratory values",
+      "kind": "measurement_threshold",
+      "count": 2
+    },
+    {
+      "surface": "pulmonary hypertension not otherwise considered to be ph-ild",
+      "kind": "condition_absent",
+      "count": 2
+    },
+    {
+      "surface": "clinically significant left-sided heart disease",
+      "kind": "condition_absent",
+      "count": 2
+    },
+    {
+      "surface": "oxygen supplementation",
+      "kind": "measurement_threshold",
+      "count": 2
+    },
+    {
+      "surface": "current active malignancy",
+      "kind": "condition_absent",
+      "count": 2
+    },
+    {
+      "surface": "concomitant disease with life expectancy <6 months",
+      "kind": "condition_absent",
+      "count": 2
+    }
+  ],
+  "compiler_compilation_present_cases": 47,
+  "compiler_compilation_missing_cases": 2,
+  "compiler_compiled_criteria_total": 1076,
+  "compiler_checkable_predicates_total": 367,
+  "compiler_unresolved_gaps_total": 282,
+  "compiler_unresolved_gaps_by_kind": {
+    "ambiguous_mapping": 8,
+    "insufficient_source": 10,
+    "interview_required": 2,
+    "normal_range_unknown": 4,
+    "provenance_required": 6,
+    "unsupported_predicate": 252
+  },
+  "compiler_unresolved_gaps_by_stage": {
+    "concept_resolution": 199,
+    "predicate_translation": 83
+  },
+  "compiler_unresolved_gaps_by_domain": {
+    "condition": 139,
+    "free_text": 51,
+    "measurement": 58,
+    "medication": 33,
+    "temporal": 1
+  },
+  "compiler_closed_world_ok_cases": 4,
+  "compiler_closed_world_blocking_cases": 43,
+  "compiler_closed_world_findings_total": 970,
+  "compiler_closed_world_blocking_findings_total": 379
+}

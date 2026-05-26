@@ -222,6 +222,13 @@
 			'Closed world is a synthetic-eval assumption. Use only when this packet is complete for the relevant data type.'
 		);
 	}
+
+	function reviewHint(row: PatientEvidenceCalibrationRow): string | null {
+		if (row.free_text_review_hint === 'interview_required') {
+			return 'Interview required: this criterion asks for patient/site information that structured chart evidence usually cannot prove.';
+		}
+		return null;
+	}
 </script>
 
 <section class="patient-evidence">
@@ -300,6 +307,9 @@
 						<section class="candidate">
 							<h3>Candidate</h3>
 							<p class="criterion">{row.criterion_source_text}</p>
+							{#if reviewHint(row)}
+								<p class="review-hint">{reviewHint(row)}</p>
+							{/if}
 							{#if row.composite_groups.length}
 								<div class="composite-items">
 									{#each row.composite_groups as group (group.group_id)}
@@ -711,6 +721,14 @@
 		margin: 0 0 10px 0;
 		white-space: pre-wrap;
 		font-weight: 600;
+	}
+	.review-hint {
+		margin: 0 0 10px 0;
+		padding-left: 10px;
+		border-left: 3px solid #7c3aed;
+		color: #4338ca;
+		font-size: 0.86rem;
+		line-height: 1.4;
 	}
 	.composite-items {
 		margin: 0 0 12px 0;

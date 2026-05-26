@@ -186,6 +186,24 @@ def test_free_text_without_unresolved_gaps_does_not_create_queue_item() -> None:
     assert compiler_gap_queue_object(result).items == []
 
 
+def test_interview_required_gap_emits_interview_action() -> None:
+    result = compile_extracted_criteria(
+        [
+            _free_text(
+                "Patient is participating in a clinical trial of another investigational drug."
+            )
+        ]
+    )
+
+    items = compiler_gap_queue(result)
+
+    assert len(items) == 1
+    assert items[0].gap_kind == "interview_required"
+    assert items[0].recommended_action == "collect_interview_answer"
+    assert items[0].priority == 75
+    assert items[0].severity == "low"
+
+
 def test_queue_ordering_is_deterministic() -> None:
     parent = _free_text("conflicting groups")
     unknown_condition = _condition("rare unknown syndrome")

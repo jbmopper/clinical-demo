@@ -1070,6 +1070,25 @@ def test_free_text_trial_exposure_compiles_to_internal_predicate() -> None:
     assert compiled.diagnostics[0].code == "free_text.promoted.trial-exposure"
 
 
+def test_free_text_trial_participation_routes_to_interview_required_gap() -> None:
+    criterion = _free_text(
+        "Patient is participating in a clinical trial of another investigational drug or device."
+    )
+
+    result = compile_extracted_criteria([criterion], resolver_policy="cached_only")
+    compiled = result.criteria[0]
+
+    assert compiled.predicate.status == "unsupported"
+    assert compiled.predicate.predicate_kind == "free_text_review"
+    assert compiled.expansion.status == "skipped"
+    assert compiled.unresolved_gaps[0].kind == "interview_required"
+    assert compiled.unresolved_gaps[0].gap_id == (
+        "criterion:0:free-text-review:gap:interview-required"
+    )
+    assert compiled.diagnostics[0].code == "free_text.promoted.interview-required"
+    assert compiled.diagnostics[1].code == "free_text.interview_required"
+
+
 def test_medication_predicate_carries_exposure_window_and_minimum_duration() -> None:
     criterion = _medication(
         "metformin",

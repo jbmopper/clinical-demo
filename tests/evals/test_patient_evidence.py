@@ -279,6 +279,35 @@ def test_patient_evidence_bucket_focuses_patient_side_cases() -> None:
     assert patient_evidence_bucket(age) is None
 
 
+def test_patient_evidence_bucket_routes_trial_participation_to_interview_required() -> None:
+    criterion = crit_free_text(
+        source_text="Patient is participating in a clinical trial of another investigational drug."
+    )
+    target = JudgeTarget(
+        pair_id="p1__T1",
+        patient_id="p1",
+        nct_id="T1",
+        criterion_index=0,
+        verdict=MatchVerdict(
+            criterion=criterion,
+            verdict="indeterminate",
+            reason="human_review_required",
+            rationale="Free-text criterion.",
+            evidence=[],
+            matcher_version=MATCHER_VERSION,
+        ),
+    )
+
+    rows = build_patient_evidence_rows(
+        [target],
+        source_contexts={"p1__T1": LayerThreeSourceContext(patient=[], trial=[])},
+    )
+
+    assert patient_evidence_bucket(target) == "interview_required"
+    assert rows[0].candidate_bucket == "interview_required"
+    assert rows[0].free_text_review_hint == "interview_required"
+
+
 def test_build_patient_evidence_rows_attaches_source_row_ids_and_labels() -> None:
     target = JudgeTarget(
         pair_id="p1__T1",

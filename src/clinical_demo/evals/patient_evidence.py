@@ -15,6 +15,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from clinical_demo.criterion_review import is_interview_required_criterion_text
 from clinical_demo.evals.layer_three import (
     JudgeTarget,
     LayerThreeJudgment,
@@ -61,6 +62,7 @@ EvidenceRetrievalState = Literal[
 FreeTextReviewHint = Literal[
     "not_needed",
     "criterion_is_free_text",
+    "interview_required",
     "note_evidence_retrieved",
     "unmapped_or_no_structured_evidence",
 ]
@@ -726,6 +728,10 @@ def patient_evidence_bucket(
         return "unmapped_concept"
     if reason == "extractor_invariant_violation":
         return "extractor_invariant_violation"
+    if reason == "human_review_required" and is_interview_required_criterion_text(
+        target.verdict.criterion.source_text
+    ):
+        return "interview_required"
     if reason == "human_review_required" and _looks_patient_evidence_relevant(text):
         return "free_text_patient_evidence"
     return None
@@ -758,6 +764,7 @@ def _is_patient_evidence_target(target: JudgeTarget) -> bool:
             "unit_mismatch",
             "unmapped_concept",
         }
+        or (reason == "human_review_required" and is_interview_required_criterion_text(text))
         or (reason == "human_review_required" and _looks_patient_evidence_relevant(text))
     )
 
@@ -973,6 +980,8 @@ def _free_text_review_hint(
     concept_mappings: list[PatientEvidenceConceptMapping],
 ) -> FreeTextReviewHint:
     if verdict.criterion.kind == "free_text":
+        if is_interview_required_criterion_text(verdict.criterion.source_text):
+            return "interview_required"
         return "criterion_is_free_text"
     if retrieved_note_ids:
         return "note_evidence_retrieved"

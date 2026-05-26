@@ -73,6 +73,23 @@ def test_fix_routes_unsafe_composite_to_free_text_review() -> None:
     assert "condition_absent" in fixed.free_text.note
 
 
+def test_fix_marks_clinical_trial_participation_as_interview_required() -> None:
+    original = crit_free_text(
+        source_text=(
+            "Patient is participating in a clinical trial of another investigational "
+            "drug or device."
+        )
+    )
+
+    out = fix_extracted_criteria(_extracted(original))
+
+    fixed = out.criteria[0]
+    assert fixed.kind == "free_text"
+    assert fixed.free_text is not None
+    assert "interview_required" in fixed.free_text.note
+    assert "interview_required" in out.metadata.notes
+
+
 def test_fix_emits_native_composite_groups_for_explicit_or_bundle() -> None:
     original = crit_free_text().model_copy(
         update={

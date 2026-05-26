@@ -13,6 +13,7 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
+from clinical_demo.criterion_review import is_interview_required_criterion_text
 from clinical_demo.extractor.schema import (
     CompositeCriterionGroup,
     CompositeCriterionSubcheck,
@@ -807,6 +808,13 @@ def _compile_free_text_promotion(
     resolver_policy: ResolverExecutionPolicy,
     context: _CompilerResolutionContext,
 ) -> _FreeTextPromotionCompilation | None:
+    if _is_interview_required_free_text(criterion):
+        return _interview_required_free_text_review(
+            criterion,
+            source_criterion_id=source_criterion_id,
+            resolver_policy=resolver_policy,
+        )
+
     typed_mentions: list[EntityMention] = [
         mention
         for mention in criterion.mentions
@@ -984,6 +992,76 @@ def _compile_free_text_promotion(
         diagnostics=compiled.diagnostics,
         expansion=compiled.expansion,
         unit_normalization=compiled.unit_normalization,
+    )
+
+
+def _is_interview_required_free_text(criterion: ExtractedCriterion) -> bool:
+    if criterion.kind != "free_text":
+        return False
+    if is_interview_required_criterion_text(criterion.source_text):
+        return True
+    return bool(criterion.free_text and "interview_required" in criterion.free_text.note)
+
+
+def _interview_required_free_text_review(
+    criterion: ExtractedCriterion,
+    *,
+    source_criterion_id: str,
+    resolver_policy: ResolverExecutionPolicy,
+) -> _FreeTextPromotionCompilation:
+    surface = criterion.source_text
+    message = (
+        "Criterion asks for trial participation information that is usually collected by "
+        "patient/site interview rather than inferred from structured FHIR evidence."
+    )
+    gap = _gap(
+        gap_id=f"{source_criterion_id}:free-text-review:gap:interview-required",
+        stage="predicate_translation",
+        domain="free_text",
+        kind="interview_required",
+        source_criterion_id=source_criterion_id,
+        surface=surface,
+        message=message,
+        resolver_policy=resolver_policy,
+    )
+    predicate = CheckablePredicatePlan(
+        status="unsupported",
+        predicate_kind="free_text_review",
+        expression=None,
+        input_refs=[source_criterion_id],
+        support_ids=[],
+        gap_ids=[gap.gap_id],
+    )
+    expansion = ExpansionPlan(
+        status="skipped",
+        domain="free_text",
+        source_surface=surface,
+        strategy="none",
+        support_ids=[],
+        gap_ids=[gap.gap_id],
+    )
+    return _promoted_compilation(
+        criterion,
+        source_criterion_id=source_criterion_id,
+        surface=surface,
+        promotion_kind="interview-required",
+        predicate=predicate,
+        predicates=[],
+        supports=[],
+        gaps=[gap],
+        diagnostics=[
+            _diagnostic(
+                severity="warning",
+                code="free_text.interview_required",
+                message=message,
+                stage="predicate_translation",
+                source_criterion_id=source_criterion_id,
+                facts=[("surface", surface), ("gap_id", gap.gap_id)],
+            )
+        ],
+        promotion_domain="free_text",
+        promotion_label="free-text",
+        expansion=expansion,
     )
 
 
