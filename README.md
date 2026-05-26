@@ -78,6 +78,8 @@ system never autonomously enrolls anyone.
   compiler, retrieval, and eval store.
 - [`docs/known-limitations-and-scope.md`](./docs/known-limitations-and-scope.md) —
   current scope boundaries and claims the demo does not support yet.
+- [`docs/presentation-demo-plan.md`](./docs/presentation-demo-plan.md) —
+  current presentation checkpoint, artifact map, and next demo-build tasks.
 
 ## Setup
 

@@ -21,6 +21,10 @@ Authoritative frozen compiler snapshot:
 Current post-D2 compiler-gap snapshot:
 `eval/baselines/2026-05-26-interview-required/SUMMARY.md`.
 
+Current presentation checkpoint:
+`docs/presentation-demo-plan.md`. D3 is intentionally paused until the
+presentation casebook and new trial/patient matching flow are concrete.
+
 ## Product contract
 
 The system screens a patient record against a trial protocol and returns
@@ -79,6 +83,9 @@ with `--max-unresolved-gaps 282` and
 
 ## Remaining blockers
 
+- Presentation casebook and replayable score outputs are not packaged yet.
+- One-trial import and broader Synthea-patient selection flows need a short
+  demo path before claiming "bring your own patient/trial" ergonomics.
 - Finish the remaining 5 patient-evidence labels before freezing final demo
   claims, if time permits.
 - Closed-world compiled execution still has validation blockers.

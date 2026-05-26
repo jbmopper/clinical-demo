@@ -30,6 +30,12 @@ rise from 280 to 282 because two previously implicit free-text review blockers
 are now explicit `interview_required` gaps. Closed-world blocking cases,
 blocking findings, and `unsupported_predicate` counts stay flat.
 
+**Pause note (2026-05-26).** D3 is intentionally paused. The next work is
+presentation-demo packaging: pick concrete patient/trial walkthroughs, export
+score outputs, make the "pull in a new trial/patient and match" flow visible,
+and only then decide whether the bounded patch-proposal workflow is worth the
+extra machinery for this demo.
+
 ---
 
 ## 1. Tracks at a glance
@@ -49,10 +55,15 @@ Track B  [B1 deployment-readiness doc skeleton] ───── (parallel) │
 Track C  [C1 README polish] ─────────────────────── (parallel)   │
                                                                  │
 Track D                                          [D1 §2.24]      │ [D2 interview_required]
-(self-building)                                       │          │ [D3 §3.3d]
+(self-building)                                       │          │ [D3 paused]
                                                       ▼          │
                                             (re-run A2 against   │
                                              post-§2.24 system)  │
+
+Track P                                          [P1 casebook]   │ [P2 import flow]
+(presentation)                                      │            │ [P3 slide assets]
+                                                     ▼            │
+                                        concrete reviewer demo    │
 ```
 
 **Hard dependencies:**
@@ -61,11 +72,14 @@ Track D                                          [D1 §2.24]      │ [D2 interv
 - `A3` blocks on `A2`.
 - `D1 (§2.24)` blocks on `A2` (so the frozen baseline is captured before the fixer narrows `free_text` rows).
 - `D3 (§3.3d)` blocks on `D1` (its scope is "rows §2.24 didn't atomize").
+- `P2` blocks on `P1` only for demo polish; the underlying CLI/API already
+  scores curated patients and trials.
 
 **Soft dependencies / parallelism:**
 
 - `B1` and `C1` can run any time after `A1` is in flight; they don't depend on it numerically.
 - `D2 (interview_required)` is independent of `D1` but post-demo by sequencing choice.
+- `P1` and `P3` can run while `P2` is still being implemented.
 
 ---
 
@@ -205,6 +219,9 @@ regeneration triggers** (when the patient-evidence packet must be rebuilt).
 
 ### D3. §3.3d — LLM-driven bounded patch-proposal workflow
 
+**Status: paused before implementation.** Resume only after the presentation
+demo proves the current score/reviewer loop on concrete patient/trial examples.
+
 - **Functionality.** For criteria where D1's deterministic detector did *not*
   fire and the row remains `kind=free_text` despite the extractor emitting
   multiple typed mentions, an opt-in LLM pass proposes a composite-group
@@ -231,6 +248,48 @@ regeneration triggers** (when the patient-evidence packet must be rebuilt).
 - **Calibration triggers.** Regenerate the patient-evidence packet only after
   a *batch* of promoted packets lands (avoid one regen per promotion).
 
+### P1. Presentation casebook and run packet
+
+- **Functionality.** Choose 3-5 patient/trial pairs that show the system's
+  range: a clean fail, a possible match / pass-pending-review, an
+  indeterminate with retrieved evidence, and an `interview_required` abstention.
+- **Inputs.** Existing curated cohort/trial manifests, `/score` UI, and the
+  baseline summaries listed in `docs/presentation-demo-plan.md`.
+- **Outputs.**
+  - `eval/baselines/<date>-presentation-demo/` with one JSON and one readable
+    Markdown summary per selected pair.
+  - Screenshot checklist for the reviewer UI.
+- **Eval triggers.** None. These are presentation exports, not a calibrated
+  eval denominator.
+- **Calibration triggers.** None.
+
+### P2. New trial / patient import demo path
+
+- **Functionality.** Make the "bring in a new trial/patient and match it" path
+  demoable. Minimum viable version:
+    1. import one NCT ID into `data/curated/trials/`,
+    2. ensure/extract cached criteria for that trial,
+    3. choose or append a Synthea patient to the cohort manifest,
+    4. score the pair through CLI and UI.
+- **Inputs.** ClinicalTrials.gov v2 via existing trial client, Synthea FHIR
+  bundles, `scripts/score_pair.py`, FastAPI `/score`.
+- **Outputs.** A short runbook plus one successful imported-pair output.
+- **Eval triggers.** None unless the imported pair becomes part of a future
+  calibration/eval seed.
+- **Calibration triggers.** None.
+
+### P3. Presentation slide assets
+
+- **Functionality.** Convert the existing measured artifacts into deck-ready
+  tables/screenshots: readiness snapshot, cost/quality routing table,
+  patient-evidence denominator, D1/D2 self-building guardrail examples, and one
+  live matching walkthrough.
+- **Inputs.** `docs/presentation-demo-plan.md` and baseline summaries.
+- **Outputs.** Image/table snippets under a presentation asset directory or
+  copied directly into the deck workspace.
+- **Eval triggers.** None.
+- **Calibration triggers.** None.
+
 ---
 
 ## 3. Eval re-trigger table
@@ -244,6 +303,8 @@ regeneration triggers** (when the patient-evidence packet must be rebuilt).
 | A2 / A3 ship                                           | Cost/quality sweep across `none`, `retrieval_only`, one `bounded_adjudication` model                 | `eval/baselines/2026-05-21-cost-quality/SUMMARY.md` + per-mode diagnostics |
 | D1 ships                                               | Re-run frozen compiler-diagnostics gate **and** patient-evidence report against the *same* labels    | `eval/baselines/2026-05-21-self-build-slice1/`                  |
 | D2 ships                                               | Re-run cached compiler diagnostics; rerun patient-evidence report if trial-participation rows now abstain | `eval/baselines/2026-05-26-interview-required/`                 |
+| P1 presentation casebook ships                         | Run selected pairs through CLI/UI; export presentation-only JSON/Markdown                                 | `eval/baselines/<date>-presentation-demo/`                      |
+| P2 imports a new trial/patient                         | Score the imported pair; do not add it to calibrated metrics by default                                   | Presentation packet / stdout                                    |
 | D3 promotes a batch of patches into the executable registry | Compiler diagnostics gate **byte-for-byte regression check** against the previous snapshot     | New `eval/baselines/<date>-self-build-batch-N/` snapshot         |
 | Any matcher-semantics change (no current plan)         | Layer-1 + frozen compiler-diagnostics + patient-evidence reports                                     | New baseline directory                                           |
 | Extractor model change (no current plan)               | Layer-1 + Layer-2 + frozen compiler-diagnostics gate                                                 | New baseline directory                                           |
@@ -390,8 +451,9 @@ maps directly to an output of the steps above:
 
 **Demo is ready when:** A1, A2, A3 outputs exist in
 `eval/baselines/2026-05-21-cost-quality/`; the deployment-readiness doc has
-its first prose pass (B1 follow-up); D1 has at least a draft PR open, even if
-not merged. D2 and D3 are explicitly *not* on the demo-readiness checklist.
+its first prose pass; D1/D2 have smoke summaries; and P1 has a concrete
+casebook with at least one end-to-end patient/trial match that can be run live
+or replayed from an exported result. D3 is explicitly paused.
 
 ---
 
