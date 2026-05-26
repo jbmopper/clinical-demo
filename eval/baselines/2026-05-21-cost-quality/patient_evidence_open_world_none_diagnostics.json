@@ -5,7 +5,7 @@
     "source_data": "Synthetic Synthea patients and public ClinicalTrials.gov trial metadata."
   },
   "run_id": "3c66a9b997c6",
-  "notes": "2026-05-21 cost-quality 10-label slice open_world none; compiled_predicates; binding_strategy=two_pass; resolver_execution_policy=cached_only; matcher_assumption_mode=open_world; llm_use_level=none",
+  "notes": "2026-05-21 cost-quality open_world none; compiled_predicates; binding_strategy=two_pass; resolver_execution_policy=cached_only; matcher_assumption_mode=open_world; llm_use_level=none",
   "n_cases": 49,
   "n_errors": 2,
   "scored_cases": 47,

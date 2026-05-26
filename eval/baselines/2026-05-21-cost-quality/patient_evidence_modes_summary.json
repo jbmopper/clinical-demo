@@ -5,18 +5,18 @@
     "source_data": "Synthetic Synthea patients and public ClinicalTrials.gov trial metadata."
   },
   "date": "2026-05-21-cost-quality",
-  "generated_on": "2026-05-14",
-  "purpose": "Directional cost/quality sweep for the frozen compiler baseline using the current 10 usable patient-evidence labels.",
+  "generated_on": "2026-05-15",
+  "purpose": "Cost/quality sweep for the frozen compiler baseline using the current 21 usable patient-evidence labels.",
   "calibration": {
     "labels_path": "eval/calibration/patient_evidence_labels.json",
     "total_rows": 26,
-    "filled_rows": 10,
-    "usable_rows": 10,
+    "filled_rows": 21,
+    "usable_rows": 21,
     "usable_by_assumption": {
-      "open_world": 8,
-      "closed_world_eval": 2
+      "open_world": 15,
+      "closed_world_eval": 6
     },
-    "interpretation": "Directional demo slice only; below the planned 20/26 gate."
+    "interpretation": "Planned 20/26 gate is met; still a modest demo denominator."
   },
   "run_ids": {
     "open_world_none": "3c66a9b997c6",
@@ -27,10 +27,10 @@
   "open_world": {
     "none": {
       "run_id": "3c66a9b997c6",
-      "comparable_targets": 8,
-      "correct_verdicts": 8,
-      "verdict_accuracy": 1.0,
-      "abstention_rate": 0.625,
+      "comparable_targets": 15,
+      "correct_verdicts": 13,
+      "verdict_accuracy": 0.8666666666666667,
+      "abstention_rate": 0.4,
       "case_eligibility_counts": {
         "fail": 27,
         "indeterminate": 18,
@@ -47,10 +47,10 @@
     },
     "retrieval_only": {
       "run_id": "af4c6414901a",
-      "comparable_targets": 8,
-      "correct_verdicts": 8,
-      "verdict_accuracy": 1.0,
-      "abstention_rate": 0.625,
+      "comparable_targets": 15,
+      "correct_verdicts": 13,
+      "verdict_accuracy": 0.8666666666666667,
+      "abstention_rate": 0.4,
       "case_eligibility_counts": {
         "fail": 27,
         "indeterminate": 18,
@@ -75,10 +75,10 @@
     },
     "bounded_adjudication": {
       "run_id": "beee2d70e76b",
-      "comparable_targets": 8,
-      "correct_verdicts": 8,
-      "verdict_accuracy": 1.0,
-      "abstention_rate": 0.625,
+      "comparable_targets": 15,
+      "correct_verdicts": 13,
+      "verdict_accuracy": 0.8666666666666667,
+      "abstention_rate": 0.4,
       "case_eligibility_counts": {
         "fail": 35,
         "indeterminate": 12
@@ -129,10 +129,10 @@
   "closed_world_eval_context": {
     "none": {
       "run_id": "b47ada00d6a7",
-      "comparable_targets": 2,
-      "correct_verdicts": 1,
-      "verdict_accuracy": 0.5,
-      "abstention_rate": 0.5,
+      "comparable_targets": 6,
+      "correct_verdicts": 2,
+      "verdict_accuracy": 0.3333333333333333,
+      "abstention_rate": 0.6666666666666666,
       "case_eligibility_counts": {
         "fail": 40,
         "indeterminate": 5,
@@ -147,10 +147,10 @@
       "adjudicator_cost_usd": 0.0,
       "total_scoring_latency_ms": 23094.476625032257
     },
-    "interpretation": "Closed-world rows are retained as context only because there are only 2 usable labels under this assumption mode."
+    "interpretation": "Closed-world rows are retained as context because there are only 6 usable labels under this assumption mode."
   },
   "decision": {
     "default_recommendation": "retrieval_only for reviewer-facing unresolved rows; none for deterministic-only batch scoring; bounded_adjudication as opt-in escalation.",
-    "reason": "Bounded adjudication changed case rollups and reduced total indeterminate criteria, but it did not improve the 8-label open-world accuracy/abstention slice and cost 695 calls / $0.1678."
+    "reason": "Bounded adjudication changed case rollups and reduced total indeterminate criteria, but it did not improve the 15-label open-world accuracy/abstention slice and cost 695 calls / $0.1678."
   }
 }

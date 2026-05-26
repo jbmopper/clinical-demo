@@ -12,7 +12,7 @@ needs review before anyone should treat the system as operational.
 | Compiler closure | 0 / 1076 `unmapped_concept` rows | Opaque terminology misses are closed in the frozen demo snapshot. |
 | Typed compiler gaps | 280 unresolved gaps | All remaining compiler blockers are classified, not hidden misses. |
 | Closed-world validation | 43 blocking cases / 379 blocking findings | Compiled execution is still gated for closed-world use. |
-| Patient-evidence calibration | 10 / 26 usable labels | Directional demo slice only; below the planned 20-row gate. |
+| Patient-evidence calibration | 21 / 26 usable labels | Planned gate cleared; still a modest demo denominator. |
 | Assumption modes | `open_world`, `closed_world_eval`, `closed_world_demo` | Missing chart evidence is handled explicitly rather than implied. |
 
 Authoritative frozen compiler snapshot:
@@ -47,8 +47,8 @@ The patient-evidence report compares three levels:
 | `retrieval_only` | Attaches ranked patient rows to indeterminate verdicts without changing verdicts. | Good default reviewer aid. |
 | `bounded_adjudication` | Lets an LLM adjudicate from retrieved rows only, with citation fail-closed rules. | Useful only where measured quality justifies token spend. |
 
-The current 10-label slice is enough to show the reporting path and rough
-mode behavior. It is not enough to set a durable default routing policy.
+The current 21-label slice is enough to show the reporting path and rough
+mode behavior. It is not enough to set a durable production routing policy.
 
 ## Reproduction gate
 
@@ -71,7 +71,8 @@ uv run python scripts/check_compiler_diagnostics.py \
 
 ## Remaining blockers
 
-- Patient-evidence labels are still below the planned 20 / 26 gate.
+- Finish the remaining 5 patient-evidence labels before freezing final demo
+  claims, if time permits.
 - Closed-world compiled execution still has validation blockers.
 - Nested composite criteria and richer event extraction remain out of scope.
 - Note-aware free-text behavior is not yet calibrated on a clinical note corpus.

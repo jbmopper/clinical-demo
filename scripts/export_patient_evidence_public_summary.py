@@ -65,9 +65,10 @@ def build_public_summary(
     }
 
     if labels_spec:
-        labels = load_json_spec(labels_spec)
+        labels_doc = load_json_spec(labels_spec)
+        labels = labels_doc.get("labels", []) if isinstance(labels_doc, dict) else labels_doc
         if not isinstance(labels, list):
-            raise ValueError("label artifact must be a JSON list")
+            raise ValueError("label artifact must be a JSON list or labels envelope")
         summary["inputs"]["label_templates"] = input_summary(labels_spec, labels)
         summary["labels"] = summarize_labels(labels)
 

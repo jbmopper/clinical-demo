@@ -40,9 +40,10 @@ AI Forward Deployed Engineer interview.
 > evidence, and decide whether there is enough support to flag a
 > possible match. The active patient-evidence packet is the frozen
 > 26-row cardiometabolic slice built against run `b47ada00d6a7`;
-> the current demo pass has 10 usable labels and is directional, not
-> a statistically stable quality claim. Oncology/NSCLC rows are
-> deferred unless paired with hand-crafted oncology evidence.
+> the current demo pass has 21 usable labels, enough to clear the
+> planned calibration gate but still a modest denominator.
+> Oncology/NSCLC rows are deferred unless paired with hand-crafted
+> oncology evidence.
 > `retrieval_only` is now exposed through the scorer, eval CLI, FastAPI
 > `/score`, and the reviewer UI; it attaches ranked patient source rows
 > to unresolved criterion verdicts without changing pass/fail decisions.
@@ -53,7 +54,7 @@ AI Forward Deployed Engineer interview.
 > `retrieval_only`, and `bounded_adjudication` runs against filled
 > labels, including verdict accuracy, citation agreement, abstention,
 > case rollup movement, and adjudicator cost/call totals. The current
-> 10-label slice can support a demo cost/quality walkthrough; broad
+> 21-label slice can support a demo cost/quality walkthrough; broad
 > multi-model claims remain blocked on more human calibration, not
 > plumbing. A local TrialGPT/TREC-style benchmark scaffold is
 > also available for patient-summary / trial-ranking framing; official

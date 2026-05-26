@@ -8,8 +8,8 @@
   "status": "provisional",
   "basis": {
     "baseline_dir": "eval/baselines/2026-05-21-cost-quality",
-    "label_denominator": "10 usable rows: 8 open_world, 2 closed_world_eval",
-    "warning": "This policy is a demo artifact, not a production default. Revisit after the planned 20/26 label gate."
+    "label_denominator": "21 usable rows: 15 open_world, 6 closed_world_eval",
+    "warning": "This policy is a demo artifact, not a production default. Revisit after the remaining labels, D1/D3 changes, or a broader patient/trial slice."
   },
   "defaults": {
     "batch_scoring": "none",
@@ -75,7 +75,7 @@
       "criterion_kind": "*",
       "matcher_assumption_mode": "closed_world_eval",
       "llm_use_level": "none",
-      "rationale": "Closed-world labels are too sparse in this slice to justify extra default spend."
+      "rationale": "Closed-world labels are still sparse and underperform in this slice, so they do not justify extra default spend."
     }
   ],
   "bounded_adjudication_escalation": {
@@ -84,6 +84,6 @@
       "retrieval_only surfaced relevant patient rows",
       "the user explicitly requests citation-grounded adjudication or the workflow is a budgeted eval sweep"
     ],
-    "not_default_reason": "In this 8-label open-world slice it did not improve labeled accuracy or abstention, while adding 695 calls / $0.1678."
+    "not_default_reason": "In this 15-label open-world slice it did not improve labeled accuracy or abstention, while adding 695 calls / $0.1678."
   }
 }

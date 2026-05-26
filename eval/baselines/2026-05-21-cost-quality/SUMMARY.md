@@ -1,14 +1,14 @@
 Public-Artifact-Safety: synthetic
 
-# 2026-05-21 Cost/Quality Directional Slice
+# 2026-05-21 Cost/Quality Calibration Slice
 
 Purpose: compare `none`, `retrieval_only`, and `bounded_adjudication` against
 the frozen compiler baseline using the current patient-evidence labels.
 
-This is deliberately a small demo slice. The label file has 10 / 26 usable
-rows, split across 8 `open_world` rows and 2 `closed_world_eval` rows. The
-planned gate remains at least 20 / 26 usable labels before making stronger
-quality claims.
+This is deliberately a modest demo slice. The label file has 21 / 26 usable
+rows, split across 15 `open_world` rows and 6 `closed_world_eval` rows. The
+planned 20 / 26 gate is now met, but the denominator remains too small for
+durable production routing claims.
 
 ## Provenance
 
@@ -25,17 +25,17 @@ quality claims.
 
 | Assumption mode | Usable labels | Interpretation |
 |---|---:|---|
-| `open_world` | 8 | Main directional slice |
-| `closed_world_eval` | 2 | Context only |
-| Total | 10 | Below planned 20 / 26 gate |
+| `open_world` | 15 | Main calibrated slice |
+| `closed_world_eval` | 6 | Context only |
+| Total | 21 | Planned 20 / 26 gate met |
 
 ## Open-World Mode Comparison
 
 | Mode | Run ID | Comparable | Accuracy | Abstention | Case rollup | Adjudicator | Latency |
 |---|---|---:|---:|---:|---:|---:|---:|
-| `none` | `3c66a9b997c6` | 8 | 100.0% | 62.5% | 27 fail / 18 indeterminate / 2 pass_pending_review | 0 calls / $0.0000 | 19.6s |
-| `retrieval_only` | `af4c6414901a` | 8 | 100.0% | 62.5% | 27 fail / 18 indeterminate / 2 pass_pending_review | 0 calls / $0.0000 | 20.7s |
-| `bounded_adjudication` | `beee2d70e76b` | 8 | 100.0% | 62.5% | 35 fail / 12 indeterminate | 695 calls / $0.1678 | 1050.2s |
+| `none` | `3c66a9b997c6` | 15 | 86.7% | 40.0% | 27 fail / 18 indeterminate / 2 pass_pending_review | 0 calls / $0.0000 | 19.6s |
+| `retrieval_only` | `af4c6414901a` | 15 | 86.7% | 40.0% | 27 fail / 18 indeterminate / 2 pass_pending_review | 0 calls / $0.0000 | 20.7s |
+| `bounded_adjudication` | `beee2d70e76b` | 15 | 86.7% | 40.0% | 35 fail / 12 indeterminate | 695 calls / $0.1678 | 1050.2s |
 
 `retrieval_only` changed no verdicts by design, but surfaced patient rows for
 reviewer inspection.
@@ -43,18 +43,18 @@ reviewer inspection.
 `bounded_adjudication` changed 9 case rollups relative to `none`: 7
 `indeterminate -> fail`, 1 `pass_pending_review -> fail`, and 1
 `pass_pending_review -> indeterminate`. It also reduced criterion-level
-indeterminates across the full run from 914 to 858. The current label slice did
-not show a calibrated quality improvement over cheaper modes, so this is not
+indeterminates across the full run from 914 to 858. The current calibrated
+slice did not show a quality improvement over cheaper modes, so this is not
 enough evidence to make bounded adjudication the default route.
 
 ## Closed-World Context
 
 | Mode | Run ID | Comparable | Accuracy | Abstention | Case rollup |
 |---|---|---:|---:|---:|---:|
-| `none` | `b47ada00d6a7` | 2 | 50.0% | 50.0% | 40 fail / 5 indeterminate / 2 pass_pending_review |
+| `none` | `b47ada00d6a7` | 6 | 33.3% | 66.7% | 40 fail / 5 indeterminate / 2 pass_pending_review |
 
-Only 2 usable labels match `closed_world_eval`, so no closed-world routing
-policy should be inferred from this slice.
+Only 6 usable labels match `closed_world_eval`, so no broad closed-world
+routing policy should be inferred from this slice.
 
 ## Routing Decision
 

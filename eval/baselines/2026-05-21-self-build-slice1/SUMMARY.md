@@ -54,9 +54,9 @@ contain at least one unreviewed mention surface.
 
 ## Patient-Evidence Check
 
-The same 10-label file was rerun against `5f3acbeb448f`. Only 2 labels match
-the `closed_world_eval` assumption mode, and the report remains 1 / 2 correct
-with 50.0% abstention, matching the pre-D1 closed-world context.
+The same 21-label file was rerun against `5f3acbeb448f`. Six labels match the
+`closed_world_eval` assumption mode, and the report is 2 / 6 correct with
+66.7% abstention, matching the refreshed pre-D1 closed-world context.
 
 ## Files
 

@@ -97,6 +97,13 @@ class PatientEvidenceHumanLabel(BaseModel):
     rationale: str = ""
 
 
+PATIENT_EVIDENCE_LABELS_ARTIFACT_SAFETY = {
+    "public_export": "synthetic",
+    "contains_real_patient_data": False,
+    "source_data": "Synthetic Synthea patients and public ClinicalTrials.gov trial metadata.",
+}
+
+
 class PatientEvidenceSourceRow(LayerThreeSourceRecord):
     """A source row with a stable local id for reviewer citation."""
 
@@ -240,9 +247,19 @@ class PatientEvidenceReport(BaseModel):
 
 
 def load_patient_evidence_labels(path: Path | str) -> list[PatientEvidenceHumanLabel]:
-    """Load a JSON list of patient-side evidence labels."""
+    """Load patient-side evidence labels.
+
+    The committed calibration file uses a public-export metadata envelope, while
+    older temporary/test files may still be a bare list.
+    """
 
     raw = json.loads(Path(path).read_text())
+    if isinstance(raw, dict):
+        raw = raw.get("labels", [])
+    if not isinstance(raw, list):
+        raise ValueError(
+            f"patient-evidence label file must be a JSON list or labels envelope: {path}"
+        )
     return [PatientEvidenceHumanLabel.model_validate(item) for item in raw]
 
 
@@ -266,9 +283,11 @@ def save_patient_evidence_labels(
     label_path = Path(path)
     label_path.parent.mkdir(parents=True, exist_ok=True)
     ordered = sorted(labels, key=lambda label: (label.pair_id, label.criterion_index))
-    label_path.write_text(
-        json.dumps([label.model_dump(mode="json") for label in ordered], indent=2) + "\n"
-    )
+    payload = {
+        "artifact_safety": PATIENT_EVIDENCE_LABELS_ARTIFACT_SAFETY,
+        "labels": [label.model_dump(mode="json") for label in ordered],
+    }
+    label_path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
 def save_patient_evidence_rows(
